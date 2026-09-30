@@ -9,7 +9,7 @@
 """
 import csv, hashlib, json, os, re, sys
 
-VERSION = '0.4'
+VERSION = '0.5'
 ROOT = os.path.dirname(os.path.abspath(__file__))
 NOASSETS = '--noassets' in sys.argv
 SRC = ['engine_battle.js', 'engine_game.js', 'engine_ach.js', 'engine_conquest.js', 'saveio.js', 'view.js', 'view_conquest.js', 'pwa.js']
@@ -91,6 +91,20 @@ def bonds():
     return rows
 
 
+def heroes():
+    """将领表并上生平（data/bios.tsv）；缺人、多人、空生平都报错。"""
+    rows = tsv('heroes_all.tsv')
+    bio = {r['名']: r['生平'] for r in tsv('bios.tsv')}
+    names = {r['名'] for r in rows}
+    miss = [n for n in names if not bio.get(n, '').strip()]
+    extra = [n for n in bio if n not in names]
+    if miss or extra:
+        sys.exit('生平对不上：缺 ' + '、'.join(sorted(miss)) + '；多 ' + '、'.join(sorted(extra)))
+    for r in rows:
+        r['生平'] = bio[r['名']]
+    return rows
+
+
 def fhash(p):
     h = hashlib.md5()
     with open(p, 'rb') as f:
@@ -145,7 +159,7 @@ def scenes():
 def main():
     data = {
         'version': VERSION,
-        'heroes': tsv('heroes_all.tsv'), 'skills': tsv('skills_dsl.tsv'), 'equip': tsv('equip.tsv'),
+        'heroes': heroes(), 'skills': tsv('skills_dsl.tsv'), 'equip': tsv('equip.tsv'),
         'set4': tsv('set4.tsv'), 'stages': tsv('stages.tsv'), 'cities': tsv('cities.tsv'), 'bonds': bonds(),
         'story': story(), 'crawl': crawl(), 'sets': set_text(), 'portraits': portraits(), 'scenes': scenes(),
     }

@@ -135,6 +135,9 @@ h1,h2,h3,.kai{font-family:var(--f-title);font-weight:400}
 .stat4 div{display:flex;justify-content:space-between;border-bottom:1px dotted var(--ink-4);font-size:.9em}
 .stat4 b{font-family:var(--f-title);font-weight:400;font-size:1.05em}
 .stat4 small{color:var(--ink-3);font-size:.78em;margin-left:3px}
+.bio{margin:10px 0 4px;padding:2px 0 2px 10px;border-left:2px solid var(--zhu)}
+.bio .bh{font-size:.95em;color:var(--zhu);margin-bottom:2px}
+.bio p{font-size:.9em;line-height:1.8;color:var(--ink-2);margin:4px 0;text-indent:2em}
 .skill{border:1px solid var(--paper-3);background:var(--card);border-radius:6px;padding:10px;margin:8px 0}
 .skill .sn{font-family:var(--f-title);font-size:1.15em;color:var(--zhu)}
 .skill .st{font-size:.76em;border:1px solid var(--ink-4);border-radius:2px;padding:0 4px;margin-left:6px;color:var(--ink-2)}

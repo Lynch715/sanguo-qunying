@@ -391,6 +391,7 @@ VIEWS.hero = () => {
       <div class="small muted">碎片 ${s.frag}${s.star < 5 ? `　升星要 ${need}` : ''}</div>
     </div></div>
     <div class="stat4">${['atk', 'def', 'int', 'agi'].map(k => `<div><span>${KEYCN[k]}</span><span><b>${Math.round(p[k])}</b><small>+${h[grow[k]]}/级</small></span></div>`).join('')}</div>
+    ${h['生平'] ? `<div class="bio"><div class="bh kai">生平</div>${h['生平'].split('｜').map(t => `<p>${esc(t)}</p>`).join('')}</div>` : ''}
     ${skillHtml(n)}
     <div class="btns">
       <div class="btn sm${s.lv < maxLv && G.s.gold >= c1 ? '' : ' off'}" data-a="train" data-k="1">练 1 级<br><span class="tiny">${s.lv < maxLv ? c1 + ' 金' : '已满'}</span></div>
