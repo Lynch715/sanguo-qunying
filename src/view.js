@@ -293,11 +293,10 @@ VIEWS.stages = () => {
   return h;
 };
 // 关卡页的专属掉落：出处关（V0.6）＋本关出场无双（老掉法）
-const exLink = n => `<span data-a="eq-info" data-id="${esc(D.EXCL[n][0].id)}" style="text-decoration:underline">${esc((D0.sets[n] || {}).set || n)}</span>`;
 function exDropHtml(x, replay) {
-  const src = x.src.map(o => `<div>出处：${exLink(o.n)}（${esc(o.n)}）${o.miss ? `，缺 ${o.miss} 件${replay && o.tok ? `　信物 ${o.tok}/${SG.CFG.src_token}` : ''}` : '，四件齐了'}</div>`).join('');
-  const old = x.L.length ? `<div>可能掉落（${Math.round(x.pe * 100)}%）：${x.L.map(o => `${exLink(o.n)}（${esc(o.n)}，${o.miss ? `缺 ${o.miss} 件` : '齐了'}）`).join('、')}</div>` : '';
-  return `<div class="small" style="color:var(--zhu);margin-top:4px">${src}${old}</div>`;
+  const line = (o, tok) => { const m = G.exclMiss(o.n);
+    return m.length ? `<div>可能掉落：${m.map(e => `<span data-a="eq-info" data-id="${esc(e.id)}" style="text-decoration:underline">${esc(e['名'])}</span>`).join('、')}（${esc(o.n)}专属）${tok && replay && o.tok ? `　信物 ${o.tok}/${SG.CFG.src_token}` : ''}</div>` : `<div class="muted">${esc(o.n)}专属已集齐</div>`; };
+  return `<div class="small" style="color:var(--zhu);margin-top:4px">${x.src.map(o => line(o, 1)).join('')}${x.L.map(o => line(o, 0)).join('')}</div>`;
 }
 const exSrcHtml = n => { const L = D.EXSRC_OF[n]; return L ? `出处：${L.map(id => `<span data-a="src-stage" data-id="${id}" style="text-decoration:underline">${esc(D.STAGE[id]['关'])}</span>`).join('、')}${(G.s.token || {})[n] ? `　信物 ${G.s.token[n]}/${SG.CFG.src_token}` : ''}` : ''; };
 function stageSheet(id) {
