@@ -443,7 +443,7 @@ VIEWS.form = () => {
       const i = r * 3 + c, n = F[i];
       if (n && G.hero(n)) {
         const s = G.hero(n), ratio = s.hp / (s.lv * 1000);
-        grid += `<div class="gcell${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">${por(n)}<div class="gn">${esc(n)} Lv.${s.lv}${s.lv < G.maxLv() && (s.exp || 0) >= SG.CFG.exp_need(s.lv) * .9 ? '<i class="xpdot"></i>' : ''}</div><div class="bar"><em class="${ratio < .5 ? 'low' : ''}" style="width:${clamp(ratio * 100, 0, 100)}%"></em></div></div>`;
+        grid += `<div class="gcell${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">${por(n)}<div class="gn">${esc(n)} Lv.${s.lv}${s.lv < G.maxLv() && (s.exp || 0) >= SG.CFG.exp_need(s.lv) * .9 ? '<i class="xpdot"></i>' : ''}</div>${(() => { const p = G.panel(n), wj = D.H[n]['定位'] === '武将'; return `<div class="gs"><span>${wj ? '武' : '智'} ${Math.round(wj ? p.atk : p.int)}</span><span>统 ${Math.round(p.def)}</span></div><div class="gs"><span>速 ${Math.round(p.agi)}</span><span>兵 ${wan(s.hp)}</span></div>`; })()}<div class="bar"><em class="${ratio < .5 ? 'low' : ''}" style="width:${clamp(ratio * 100, 0, 100)}%"></em></div></div>`;
       } else grid += `<div class="gcell empty-c${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">空</div>`;
     }
   }

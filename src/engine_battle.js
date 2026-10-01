@@ -80,6 +80,7 @@ class Unit {
     return (this.base[k] + flat) * (1 + pct + epct);
   }
   addbuff(k, pct, rounds = -1, tag = null) {
+    if (rounds > 0 && SG.REND_FIX && this.battle && this.battle.inRend) rounds += 1;   // V0.7：回合末加的效果要撑到下一回合
     if (tag) { for (const b of this.buffs) if (b[3] === tag) { b[1] = pct; b[2] = rounds; return; } }
     this.buffs.push([k, pct, rounds, tag]);
   }
@@ -96,12 +97,13 @@ class Unit {
       prob = Math.min(0.95, (prob + src.flag('ctrlhit')) * Math.sqrt(Math.max(0.2, src.stat('int') / Math.max(1, this.stat('int')))));
     }
     if (b.hook_all('resist_status', this, s)) return false;
-    if (s === '隐身') { this.hidden = Math.max(this.hidden, rounds); return true; }
+    if (s === '隐身') { this.hidden = Math.max(this.hidden, rounds + (SG.REND_FIX && b.inRend ? 1 : 0)); return true; }
     if (s === '挑衅' && this.flags['immune_taunt']) return false;
     if (s === '震慑' && this.flags['吓死']) { this.hp = 0; b.say(`${this.name} 吓死`, { t: 'die', u: this }); return true; }
     if (R.random() < prob) {
       let r = CTRL.includes(s) ? rounds + Math.trunc(pyRound(this.flag('ctrllen'))) : rounds;
       if (CTRL.includes(s)) r = Math.max(1, r);
+      if (SG.REND_FIX && b.inRend) r += 1;
       this.status[s] = Math.max(this.status[s] || 0, r);
       b.say(`${this.name} ${s}`, { t: 'st', u: this, s, n: this.status[s], by: src });
       if ((s === '震慑' || s === '混乱' || s === '计穷') && this.prep && !this.flags['prep_unbreak']) this.prep = null;
@@ -243,7 +245,7 @@ class Battle {
     this.say(`${src ? src.name : '-'} → ${tgt.name} ${Math.trunc(tot)} (${tag})`, { t: 'hit', s: src, u: tgt, d: tot, ab, h0: hp0, h1: Math.max(0, tgt.hp), k: kind, g: tag, c: crit });
     if (src && tag === '反击') this.stats.counter[src.side]++;
     if (src) this.hook_all('after_hit', src, tgt, dmg, kind, tag);
-    this.hook_all('on_hit_taken', tgt, src, dmg, kind, tag);
+    this.hook_all('on_hit_taken', tgt, src, dmg, kind, tag, ab);   // ab：护盾挡下的量（V0.7，反弹用）
     if (tgt.hp <= 0) {
       tgt.hp = 0;
       if (!this.hook_all('on_lethal', tgt, src) && !this.hook_all('on_lethal_any', tgt, src)) {
@@ -310,7 +312,7 @@ class Battle {
     const t = this.attack_target(u);
     if (!t) return;
     let kind = u.stat('int') > u.stat('atk') ? 'mag' : 'phys';
-    if (u.flags['atk_kind']) kind = u.flags['atk_kind'];
+    if (u.flags['atk_kind'] && u.flags['atk_kind'] !== 'best') kind = u.flags['atk_kind'];   // best = 默认就取高的
     const mult = 1.0 + u.flag('atkmult');
     this.say(`${u.name} 普攻`, { t: 'atk', u, v: t });
     this.damage(u, t, mult, kind, u.flags['ignore'] || 0, u.flags['must_hit'] || false, 'attack');
@@ -372,6 +374,13 @@ class Battle {
         try { this.act(u); } catch (e) { if (!(e instanceof IndexError)) throw e; }
         if (!this.teams[0].some(x => x.alive()) || !this.teams[1].some(x => x.alive())) break;
       }
+      this.inRend = true;
+      const tick = u => {
+        for (const k of Object.keys(u.status)) { u.status[k] -= 1; if (u.status[k] <= 0) delete u.status[k]; }
+        u.buffs = u.buffs.filter(b => b[2] === -1 || b[2] > 1);
+        for (const b of u.buffs) if (b[2] > 0) b[2] -= 1;
+        if (u.hidden > 0) u.hidden -= 1;
+      };
       for (const u of all) {
         if (!u.alive()) continue;
         for (const s of ['灼烧', '中毒']) {
@@ -384,11 +393,10 @@ class Battle {
         }
         this.hook_all('round_end_unit', u);
         if (this.regen && this.regen[u.side] && u.alive()) this.heal(null, u, this.regen[u.side]);   // V0.3 天象紫微
-        for (const k of Object.keys(u.status)) { u.status[k] -= 1; if (u.status[k] <= 0) delete u.status[k]; }
-        u.buffs = u.buffs.filter(b => b[2] === -1 || b[2] > 1);
-        for (const b of u.buffs) if (b[2] > 0) b[2] -= 1;
-        if (u.hidden > 0) u.hidden -= 1;
+        if (!SG.REND_FIX) tick(u);
       }
+      if (SG.REND_FIX) for (const u of all) if (u.alive()) tick(u);   // V0.7：先让所有人的回合末效果都结算完，再统一扣回合
+      this.inRend = false;
       this.hook_all('round_end', null);
       const a = this.teams[0].some(x => x.alive()), b = this.teams[1].some(x => x.alive());
       if (!b) { this.say('胜', { t: 'end', w: 0 }); return [0, r]; }
@@ -407,6 +415,7 @@ SG.FX7 = true;
 SG.BOTH = true;   // V0.6：每回合技能和普攻都有
 SG.SET4_BONUS = 6;   // V0.7 四件通用加成（%）：主属性、统率各 +6
 SG.PAS_ATK = .2;     // V0.7 技能是指挥、被动、兵种的将领，普攻 +20%
+SG.REND_FIX = true;  // V0.7：回合末加的 1 回合效果原来当场就被清掉（对照 Python 时关掉）
 // ↑ FX7：设计_装备数值 五.5 那七条单件特效（sim 里没做，JS 里补上；对照测试时关掉）
 SG.count = sk => { if (SG.casts) { const k = sk.cname || sk.name; SG.casts[k] = (SG.casts[k] || 0) + 1; } };
 
@@ -426,7 +435,8 @@ function parse_line(line) {
     const mm = /^(\w+):([\s\S]*)$/.exec(e);
     if (mm && TRIGS.has(mm[1])) { trig = mm[1]; e = mm[2].trim(); }
     const j = e.indexOf('@');
-    const conds = (j < 0 ? '' : e.slice(j + 1)).split(',').map(c => c.trim()).filter(c => c);
+    const conds = [];   // V0.7 修：inany:甲,乙 这种名单里的逗号原来会被当成条件分隔，只认第一个名字；中文开头的片段并回上一条
+    for (const c of (j < 0 ? '' : e.slice(j + 1)).split(',').map(c => c.trim()).filter(c => c)) { if (conds.length && /^[^\x00-\x7f]/.test(c)) conds[conds.length - 1] += ',' + c; else conds.push(c); }
     if (j >= 0) e = e.slice(0, j);
     const m2 = /^(\w+)\((.*)\)/.exec(e.trim());
     if (!m2) throw new Error('效果写法不对: ' + e);
@@ -574,7 +584,7 @@ function run_effect(b, u, eff, ctx) {
     u.hp -= u.maxhp * parseFloat(a[0]) / 100;
   } else if (op === 'reflect') {
     const src = ctx.src;
-    if (src && src.alive() && u.shield > 0 && ctx.dmg) b.apply(u, src, ctx.dmg * parseFloat(a[0]) / 100, 'phys', '反弹');
+    if (src && src.alive() && ctx.ab > 0 && ctx.tag !== '反弹') b.apply(u, src, ctx.ab * parseFloat(a[0]) / 100, 'phys', '反弹');   // V0.7：原来要「挨打后还有盾且有伤害漏过来」，两条互斥，从没反弹过；改成护盾挡下多少、按比例弹回去
   } else if (op === 'dmgby') {
     const AA = targets(b, u, a[0], ctx), T = targets(b, u, a[1], ctx);
     for (const x of AA) for (const t of T) b.damage(x, t, parseFloat(a[2]), 'phys', 0, false, 'pursue');
@@ -641,7 +651,7 @@ function build(spec, name, cname) {
     sk.hooks[ev] = (u, ...args) => {
       const b = u.battle, ctx = { _trig: trig };
       if (trig === 'hit' || trig === 'maghit') {
-        const [src, dmg, kind, tag] = args; Object.assign(ctx, { src, kind, tag });
+        const [src, dmg, kind, tag, ab] = args; Object.assign(ctx, { src, kind, tag, dmg, ab });   // V0.7：带上伤害值和护盾挡下的量
         if (trig === 'maghit' && kind !== 'mag') return;
       } else if (trig === 'death') ctx.src = args[0];
       else if (trig === 'allydeath' || trig === 'enemydeath') { ctx.dead = args[0]; ctx.src = args[1]; }
@@ -651,7 +661,7 @@ function build(spec, name, cname) {
       else if (trig === 'myprep') { if (args[0] !== u) return; }
       else if (trig === 'dealt') { ctx.tgt = args[0]; ctx.dmg = args[1]; ctx.kind = args[2]; ctx.tag = args[3]; }
       else if (trig === 'lethal') ctx.src = args[0];
-      else if (trig === 'sbreak') ctx.who = args[0];
+      else if (trig === 'sbreak') { ctx.who = args[0]; if (!args[0] || args[0].side !== u.side) return; }   // V0.7：只管我方的护盾
       run_list(b, u, L, ctx);
       if (trig === 'lethal' && ctx._revived) return true;
     };
@@ -750,10 +760,13 @@ reg('孙策叠层', _sunce(5)); reg('孙策叠层8', _sunce(8));
 function _luxun(k) {
   return (b, u) => {
     if (b.round <= k) { u.addbuff('int', .03 * b.round, -1, 'perm潜渊'); return; }
-    for (const t of b.pick(u, 'all')) { b.damage(u, t, .7, 'mag'); t.add_status('灼烧', 3); t.flags['灼烧_src'] = [u, .02]; }
+    for (const t of b.pick(u, 'all')) { b.damage(u, t, .7, 'mag'); t.add_status('灼烧', 3); t.flags['灼烧_src'] = [u, .02 * (1 + u.flag('dotout'))]; }
   };
 }
 reg('陆逊潜渊', _luxun(3)); reg('陆逊潜渊2', _luxun(2));
+// V0.7 修：蓄势加智力原来写在技能本体里，前三回合技能不发，这段从没跑过；改挂回合开始
+function _luxunXu(k) { return (b, u) => { if (b.round <= k) u.addbuff('int', .03 * b.round, -1, 'perm潜渊'); }; }
+reg('陆逊蓄势', _luxunXu(3)); reg('陆逊蓄势2', _luxunXu(2));
 CUSTOM._gates = { '陆逊': (b, u) => b.round >= 4, '陆逊4': (b, u) => b.round >= 3 };
 reg('太史慈神射', (b, u, ctx) => {
   const E = b.enemies(u), pre = E.filter(e => e.prep);
@@ -798,7 +811,7 @@ reg('王朗骂死', (b, u) => {
 reg('曹洪替死', () => { });
 function _tidie(protect) {
   return (u, tgt, src) => {
-    if (tgt.name === protect && u.alive() && !u.once.has('sub')) { u.once.add('sub'); u.hp = 0; tgt.hp = tgt.maxhp * .01; u.battle.say(`${u.name} 替死`, { t: 'die', u }); return true; }
+    if (tgt.name === protect && tgt.side === u.side && u.alive() && !u.once.has('sub')) { u.once.add('sub'); u.hp = 0; tgt.hp = tgt.maxhp * .01; u.battle.say(`${u.name} 替死`, { t: 'die', u }); return true; }
   };
 }
 CUSTOM._hooks['曹洪'] = { on_lethal_any: _tidie('曹操') };
