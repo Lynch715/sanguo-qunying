@@ -106,7 +106,6 @@ function titleHtml() {
   return `<div class="title-page">
     <div class="seal-big">群</div>
     <h1>三国群英录</h1>
-    <div class="sub">三百五十八人　四十四城</div>
     <div style="height:18px"></div>
     ${has ? `<div class="btn main" data-a="camp-continue">闯关　继续</div>` : ''}
     <div class="btn${has ? '' : ' main'}" data-a="camp-new">闯关　新开</div>
