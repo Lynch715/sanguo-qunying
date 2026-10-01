@@ -27,6 +27,10 @@ const CFG = {
   gold_clear: lv => 200 + 40 * lv,
   gold_replay: lv => 40 + 10 * lv,
   train_cost: lv => 20 + lv * lv,   // V0.6：原 20+5×等级，涨幅太小
+  train_cost_conquest: lv => 20 + 5 * lv,   // V0.7：霸业钱少、没有复刷，练级用老价
+  // V0.7 战斗经验：上阵的人拿；赢了 10×敌方等级×敌方人数，输了三分之一，阵亡减半，复刷减半，比敌方高 5 级以上只拿两成；升一级要 10×等级²
+  exp_win: (lv, n) => 10 * lv * n, exp_lose: 1 / 3, exp_dead: .5, exp_replay: .5, exp_over: 5, exp_over_k: .2, exp_under: 10,
+  exp_need: lv => 10 * lv * lv,
   draw: 300, draw10: 2700,
   pool: { '校': .40, '骁': .30, '名': .20, '虎': .08, '无双': .02 },
   frag_per_dup: 3,
@@ -80,16 +84,38 @@ function init(DATA) {
   D.BONDS = DATA.bonds || []; SG.setBonds(D.BONDS);
   D.BONDOF = {}; SG.BONDS.forEach(b => b.mem.forEach(m => (D.BONDOF[m] = D.BONDOF[m] || []).push(b)));
   D.PORTRAIT = DATA.portraits || {};
+  D.SKPOW = {}; (DATA.skpow || []).forEach(r => D.SKPOW[r['名']] = parseFloat(r['技能系数']) || 0);   // V0.7 战力里的技能系数（sim/audit_v05/gen_skill_power.js 出）
   return D;
 }
 SG.init = init;
 
 // ---------------- 造人 ----------------
+// V0.7：战力乘上技能系数（摘技能前后的胜率差 × 2，最低打五折）；杂兵没有技能，系数 0
+function skillMul(name) { const k = (SG.D && SG.D.SKPOW && SG.D.SKPOW[name]) || 0; return Math.max(.5, 1 + 2 * k); }
+SG.skillMul = skillMul;
 function unitPower(u) {
   const ti = Math.max(0, SG.TIER_ORDER.indexOf(u.tier));
-  return (u.stat('atk') + u.stat('def') + u.stat('int') + u.stat('agi')) * (1 + .15 * ti) * (u.maxhp / 1000) / 10 * (0.5 + 0.5 * Math.max(0, u.hp) / u.maxhp);
+  return (u.stat('atk') + u.stat('def') + u.stat('int') + u.stat('agi')) * (1 + .15 * ti) * (u.maxhp / 1000) / 10 * (0.5 + 0.5 * Math.max(0, u.hp) / u.maxhp) * skillMul(u.name);
 }
 SG.unitPower = unitPower;
+// V0.7 战斗经验：算一个人这一仗拿多少
+function expFor(lv, foeLv, nFoes, win, alive, replay) {
+  let e = CFG.exp_win(Math.min(foeLv, lv + CFG.exp_under), nFoes);   // 敌方高出 10 级以上按高 10 级算，免得拿低级将领送死刷经验
+  if (!win) e *= CFG.exp_lose;
+  if (!alive) e *= CFG.exp_dead;
+  if (replay) e *= CFG.exp_replay;
+  if (lv >= foeLv + CFG.exp_over) e *= CFG.exp_over_k;
+  return Math.round(e);
+}
+// 加经验、升级；h = { lv, exp }，返回升了几级（兵力由调用方补）
+function expAdd(h, e, maxLv) {
+  if (h.lv >= maxLv) { h.exp = 0; return 0; }
+  h.exp = (h.exp || 0) + e; let up = 0;
+  while (h.lv < maxLv && h.exp >= CFG.exp_need(h.lv)) { h.exp -= CFG.exp_need(h.lv); h.lv++; up++; }
+  if (h.lv >= maxLv) h.exp = 0;
+  return up;
+}
+SG.expFor = expFor; SG.expAdd = expAdd;
 function mkHeroUnit(name, lv, star, gearIds, hp) {
   const D = SG.D;
   const u = new SG.Unit(D.H[name], lv, star); u.skill = D.SK[name] || null;
@@ -332,11 +358,14 @@ class Game {
   }
   maxhp(n) { return this.s.heroes[n].lv * 1000; }
   // ---- 练级 ----
-  trainCost(n, to) { const h = this.hero(n); let c = 0; for (let l = h.lv + 1; l <= to; l++) c += CFG.train_cost(l); return c; }
+  trainCost(n, to) { const h = this.hero(n); let c = 0; for (let l = h.lv + 1; l <= to; l++) c += this.trainPrice(l); return c; }
+  trainPrice(lv) { return CFG.train_cost(lv); }
+  // V0.7：打仗拿经验，自己升级；新加的一千兵是满的
+  gainExp(n, e) { const h = this.hero(n); if (!h) return 0; const up = expAdd(h, e, this.maxLv()); h.hp += up * 1000; return up; }
   train(n, k = 1) {
     const h = this.hero(n); let did = 0;
     while (did < k && h.lv < this.maxLv()) {
-      const c = CFG.train_cost(h.lv + 1);
+      const c = this.trainPrice(h.lv + 1);
       if (this.s.gold < c) break;
       this.s.gold -= c; h.lv++; h.hp += 1000; did++;   // 新增的一千兵是满的
     }
@@ -441,7 +470,7 @@ class Game {
     const u = this.unitOf(n, true);
     return { atk: u.stat('atk'), def: u.stat('def'), int: u.stat('int'), agi: u.stat('agi'), skill: u.skill, set4: !!(u.skill && this.D.SET4[n] && u.skill === this.D.SET4[n]) };
   }
-  power(n) { const p = this.panel(n); return Math.round((p.atk + p.def + p.int + p.agi) * (1 + .15 * TIER_ORDER.indexOf(this.D.H[n]['品阶']))); }
+  power(n) { const p = this.panel(n); return Math.round((p.atk + p.def + p.int + p.agi) * (1 + .15 * TIER_ORDER.indexOf(this.D.H[n]['品阶'])) * skillMul(n)); }
   // ---- 关卡进度 ----
   isCleared(id) { return !!this.s.cleared[id]; }
   stageUnlocked(id) {
@@ -470,8 +499,11 @@ class Game {
     const res = fightStage(st, A, parseFloat(st['系数']) || 1, { log: !opt.quick, cycle: this.s.cycle, cells: picks.map(p => p[1]), tx: this.txList(), huatuo: !!this.s.heroes['华佗'] });
     // 残兵带回。赢了全员回三成；输了（V0.6）谁都不回，补兵只能征兵
     picks.forEach(([n], i) => { this.hero(n).hp = Math.max(0, A[i].hp); });
+    // V0.7 战斗经验（先结经验升级，再回三成，新长的一千兵是满的）
+    const fe = stageFoes(st, this.s.cycle, this.txList());
+    const expL = picks.map(([n], i) => { const h = this.hero(n), lv0 = h.lv; const e = expFor(lv0, fe.lv, fe.names.length, res.win, A[i].alive(), replay); const up = this.gainExp(n, e); return { n, e, up, lv: h.lv }; });
     if (res.win) for (const n in this.s.heroes) { const h = this.s.heroes[n]; h.hp = Math.min(h.lv * 1000, h.hp + h.lv * 1000 * CFG.regen_after_stage); }
-    const rew = { gold: 0, gold2: 0, items: [], first: false, replay, excl: [] };
+    const rew = { gold: 0, gold2: 0, items: [], first: false, replay, excl: [], exp: expL };
     if (res.win) {
       const lv = stageFoes(st, this.s.cycle).lv, ch = +st['章'], typ = st['类型'];
       if (!replay) {

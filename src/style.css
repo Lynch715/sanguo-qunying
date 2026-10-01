@@ -341,3 +341,7 @@ ol.lic li{margin:2px 0}
 .mapctl{position:absolute;right:6px;bottom:6px;z-index:5;display:flex;flex-direction:column;gap:4px}
 .mapctl span{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,253,248,.92);border:1px solid var(--ink-3);border-radius:4px;font-size:16px;line-height:1;cursor:pointer}
 .mapctl span.rs{font-size:11px}
+
+/* V0.7 经验 */
+.bar.xp em{background:var(--qing, #3b7a8f)}
+.xpdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--zhu);margin-left:3px;vertical-align:middle}

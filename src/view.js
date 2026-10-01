@@ -385,7 +385,7 @@ VIEWS.hero = () => {
       const have = G.s.bag.some(it => it.id === e.id), on = G.gearIds(n).includes(e.id);
       return `<span class="small" style="margin-right:8px;${on ? 'color:var(--zhu)' : have ? '' : 'color:var(--ink-4)'}">${esc(e['名'])}${on ? '·穿' : have ? '·有' : ''}</span>`;
     }).join('');
-    exHtml = `<div class="card small"><b class="kai">专属·${esc(st ? st.set : '')}</b><div>${own}</div>${G.kind === 'conquest' ? '' : `<div class="tiny" style="margin-top:2px">${exSrcHtml(n)}</div>`}${st ? `<div class="muted tiny" style="margin-top:4px">武器：${esc(st.w)}<br>宝物：${esc(st.t)}<br>两件：主属性 +6%　四件：${esc(st.four)}</div>` : ''}</div>`;
+    exHtml = `<div class="card small"><b class="kai">专属·${esc(st ? st.set : '')}</b><div>${own}</div>${G.kind === 'conquest' ? '' : `<div class="tiny" style="margin-top:2px">${exSrcHtml(n)}</div>`}${st ? `<div class="muted tiny" style="margin-top:4px">武器：${esc(st.w)}<br>宝物：${esc(st.t)}<br>两件：主属性 +6%　四件：主属性、统率再 +6%；${esc(st.four)}</div>` : ''}</div>`;
   }
   const L = sortedHeroes(), i = L.indexOf(n);
   return `<div class="row" style="margin-bottom:8px"><span class="btn sm" data-a="go" data-v="heroes">← 将领</span><span class="grow"></span>
@@ -396,6 +396,7 @@ VIEWS.hero = () => {
       <div class="small muted">${esc(h['特点'])}</div>
       <div style="margin-top:6px"><span class="kai" style="font-size:1.2em">${s.lv}</span> 级　<span class="stars">${stars(s.star)}</span></div>
       <div class="small">兵力 ${num(s.hp)} / ${num(s.lv * 1000)}</div>
+      ${s.lv < maxLv ? `<div class="small muted">经验 ${num(s.exp || 0)} / ${num(SG.CFG.exp_need(s.lv))}</div><div class="bar xp" style="margin:3px 0"><em style="width:${clamp((s.exp || 0) / SG.CFG.exp_need(s.lv) * 100, 0, 100)}%"></em></div>` : ''}
       <div class="bar" style="margin:3px 0"><em class="${s.hp / (s.lv * 1000) < .5 ? 'low' : ''}" style="width:${clamp(s.hp / (s.lv * 10), 0, 100)}%"></em></div>
       <div class="small muted">碎片 ${s.frag}${s.star < 5 ? `　升星要 ${need}` : ''}</div>
     </div></div>
@@ -438,7 +439,7 @@ VIEWS.form = () => {
       const i = r * 3 + c, n = F[i];
       if (n && G.hero(n)) {
         const s = G.hero(n), ratio = s.hp / (s.lv * 1000);
-        grid += `<div class="gcell${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">${por(n)}<div class="gn">${esc(n)} ${s.lv}</div><div class="bar"><em class="${ratio < .5 ? 'low' : ''}" style="width:${clamp(ratio * 100, 0, 100)}%"></em></div></div>`;
+        grid += `<div class="gcell${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">${por(n)}<div class="gn">${esc(n)} ${s.lv}${s.lv < G.maxLv() && (s.exp || 0) >= SG.CFG.exp_need(s.lv) * .9 ? '<i class="xpdot"></i>' : ''}</div><div class="bar"><em class="${ratio < .5 ? 'low' : ''}" style="width:${clamp(ratio * 100, 0, 100)}%"></em></div></div>`;
       } else grid += `<div class="gcell empty-c${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">空</div>`;
     }
   }
@@ -537,7 +538,7 @@ function eqInfo(id, uid) {
   let fx = '';
   if (st) {
     const w = row['槽'] === '武器' ? st.w : row['槽'] === '宝物' ? st.t : '';
-    fx = `<div class="card small"><b class="kai">专属·${esc(st.set)}</b>　${esc(own)}本人穿：固定值 ×1.5${w ? `<br>${esc(row['槽'])}特效：${esc(w)}` : ''}<br>两件：主属性 +6%<br>四件：${esc(st.four)}
+    fx = `<div class="card small"><b class="kai">专属·${esc(st.set)}</b>　${esc(own)}本人穿：固定值 ×1.5${w ? `<br>${esc(row['槽'])}特效：${esc(w)}` : ''}<br>两件：主属性 +6%<br>四件：主属性、统率再 +6%；${esc(st.four)}
       <div class="tiny muted" style="margin-top:4px">这套四件：${D.EXCL[own].map(e => `<span style="${G.s.bag.some(it => it.id === e.id) ? '' : 'color:var(--ink-4)'}">${esc(e['名'])}</span>`).join('、')}</div>${G.kind === 'conquest' ? '' : `<div class="tiny" style="margin-top:2px">${exSrcHtml(own)}</div>`}</div>`;
   }
   openModal(`<div class="shead">${eqSeal(row)} ${esc(row['名'])}<span class="x" data-a="close">关闭</span></div>
@@ -769,6 +770,10 @@ function battleGrids(b) {
   }
   return { top, bot };
 }
+function expNote(rew) {
+  const L = (rew && rew.exp || []).filter(x => x.e > 0);
+  return L.length ? `<div class="small" style="margin-top:6px">${L.map(x => `${esc(x.n)} 经验 +${num(x.e)}${x.up ? `，<b style="color:var(--zhu)">升到 ${x.lv} 级</b>` : ''}`).join('<br>')}</div>` : '';
+}
 function exclNote(rew) {
   const L = (rew.excl || []).map(e => e.how === 'token' ? `${esc(e.n)}的信物 +1（${e.tok}/${SG.CFG.src_token}）` : e.how === 'swap' ? `${esc(e.n)}的信物凑齐，换得 ${esc(D.EQID[e.id]['名'])}` : '').filter(Boolean);
   return L.length ? `<div class="small" style="margin-top:4px;color:var(--zhu)">${L.join('<br>')}</div>` : '';
@@ -788,8 +793,8 @@ function battleHtml() {
     const items = (rew.items || []).map(it => { const row = D.EQID[it.id]; return `<div>${eqSeal(row)} ${esc(row['名'])}　<span class="muted small">${eqStatTxt(row, '')}</span></div>`; }).join('');
     tail = out.note != null ? `<div class="card"><div class="result ${win ? 'win' : 'lose'}">${out.winTxt || (win ? '胜' : '败')}</div><div class="small" style="text-align:center">${out.note}</div>
       <div class="btns"><div class="btn main" data-a="${out.backAct || 'go'}" data-v="${out.back || 'map'}">${out.backTxt || '返回'}</div></div></div>` : `<div class="card"><div class="result ${win ? 'win' : 'lose'}">${win ? '胜' : '败'}</div>
-      ${win ? `<div class="small" style="text-align:center">${rew.first ? '首通　' : ''}金 +${num(rew.gold)}${rew.gold2 ? `　黄金 +${rew.gold2}` : ''}</div>${items ? `<div class="small" style="margin-top:6px">${items}</div>` : ''}${exclNote(rew)}`
-        : `<div class="small muted" style="text-align:center">败退。折损的兵马要去征兵补齐。</div>`}
+      ${win ? `<div class="small" style="text-align:center">${rew.first ? '首通　' : ''}金 +${num(rew.gold)}${rew.gold2 ? `　黄金 +${rew.gold2}` : ''}</div>${items ? `<div class="small" style="margin-top:6px">${items}</div>` : ''}${exclNote(rew)}${expNote(rew)}`
+        : `<div class="small muted" style="text-align:center">败退。折损的兵马要去征兵补齐。</div>${expNote(rew)}`}
       ${achRows(out.ach)}
       ${win && st && +st['章'] === 26 && st['类型'] === '章末' && !G.s.seenEpi && (D0.crawl || {}).epilogue ? '<div class="btns"><div class="btn main" data-a="crawl-epi">尾　声</div></div>' : ''}
       <div class="btns"><div class="btn" data-a="go" data-v="${out.back || 'stages'}">回征战</div>${st ? `<div class="btn" data-a="to-form" data-id="${st.id}">重新布阵</div><div class="btn main" data-a="refight">再战一场</div>` : ''}</div></div>`;

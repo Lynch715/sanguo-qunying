@@ -620,3 +620,23 @@ BEARING: (show waist-up only) running low through grass, spear back, blowpipe he
 BACKGROUND: a jungle in flat malachite green with tall ferns and a purple-grey rock.
 
 ```
+
+## 第 16 批（曹昂重出）
+
+原提示词写了「圆脸、脸颊饱满、小下巴、皮肤很白、两颊泛红、小鼻子、没胡子」，GPT 画成了女相。这次把男相写死：方下巴、浓眉、喉结、唇上一层薄胡茬、肩宽。
+
+存为：
+- 图 1：曹昂 → `assets/portraits/source/cao_ang.png`（覆盖原图）
+
+```
+BATCH 16 — make 1 separate image. Match the reference images: near-white paper, waist-up, big figure. Follow all rules from my first message.
+
+IMAGE 1 — file name: cao_ang.png
+SUBJECT: Cao Ang, a young MAN of 20, clearly male, tall, broad-shouldered, athletic, a soldier's build.
+FACE: a strong young man's face: square jaw, firm chin, visible Adam's apple; skin light with a warm tan, NOT pale or rosy; thick straight dark brows; eyes steady and urgent; a straight nose with a firm bridge; a wide mouth open mid-shout; a faint dark shadow of a first mustache on the upper lip. Masculine, NOT feminine, no makeup, no blush. Expression: urgent, selfless.
+HEAD: hair in a topknot under a light iron helmet with a gold band, chin strap undone.
+DRESS: azurite-blue brocade battle robe with gold edging, a light lamellar cuirass, a white silk cloak.
+WEAPON: a sword at the hip; holding a horse's reins out toward the viewer.
+BEARING: (show waist-up only) reins thrust forward with both hands, head turned to the danger behind.
+BACKGROUND: the camp at Wancheng at night, flat ink-blue, thin white arrow lines, a torch.
+```

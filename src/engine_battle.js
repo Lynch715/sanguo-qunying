@@ -352,6 +352,7 @@ class Battle {
       const act = applyBonds(t);
       for (const a of act) this.say(`${a.b.name}`, { t: 'bond', side, n: a.b.name, k: a.b.k, v: a.b.v * a.t, full: a.t === 1, mem: a.b.mem.filter(m => t.some(u => u.name === m)) });
     });
+    for (const u of all) if (SG.PAS_ATK && !u.flags['_pas'] && u.skill && /^(指挥|被动|兵种)/.test(u.skill.type)) { u.flags['_pas'] = 1; u.flags['atkmult'] = (u.flags['atkmult'] || 0) + SG.PAS_ATK; }   // 车轮战同一批人连打几阵，只加一次
     for (const u of all) for (const sk of (u.skill ? [u.skill] : []).concat(u.extras)) if (sk.setup) sk.setup(this, u);
     for (const u of all) {
       for (const sk of (u.skill ? [u.skill] : []).concat(u.extras)) {
@@ -404,6 +405,8 @@ SG.Battle = Battle;
 SG.counts = null;
 SG.FX7 = true;
 SG.BOTH = true;   // V0.6：每回合技能和普攻都有
+SG.SET4_BONUS = 6;   // V0.7 四件通用加成（%）：主属性、统率各 +6
+SG.PAS_ATK = .2;     // V0.7 技能是指挥、被动、兵种的将领，普攻 +20%
 // ↑ FX7：设计_装备数值 五.5 那七条单件特效（sim 里没做，JS 里补上；对照测试时关掉）
 SG.count = sk => { if (SG.casts) { const k = sk.cname || sk.name; SG.casts[k] = (SG.casts[k] || 0) + 1; } };
 
@@ -661,14 +664,14 @@ SG.build = build;
 const CUSTOM = {};
 SG.CUSTOM = CUSTOM;
 const reg = (n, f) => { CUSTOM[n] = f; };
-function _zhan(lim) {
+function _zhan(lim, m = 2.6) {
   return (b, u, ctx) => {
     const t = first(b.pick(u, 'hp_max'));
     if (t.ratio() < lim && !u.once.has('斩')) { u.once.add('斩'); b.apply(u, t, t.hp + 1, 'phys', '斩杀'); return; }
-    b.damage(u, t, 2.6);
+    b.damage(u, t, m);
   };
 }
-reg('关羽斩', _zhan(.30)); reg('关羽斩40', _zhan(.40));
+reg('关羽斩', _zhan(.30)); reg('关羽斩40', _zhan(.40)); reg('关羽斩V7', _zhan(.40, 3.2));
 function _qijin(nmax) {
   return (b, u, ctx) => {
     const t = ctx.tgt; let n = 0;
@@ -677,12 +680,13 @@ function _qijin(nmax) {
 }
 reg('赵云七进七出', _qijin(3)); reg('赵云七进七出4', _qijin(4));
 reg('马超后期', (b, u) => { if (b.round >= 4) { u.flags['神威'] = Math.min(.16, (u.flags['神威'] || 0) + .04); u.addbuff('atk', u.flags['神威'], -1, 'perm神威'); } });
-function _huangzhong(cap, step) {
+function _huangzhong(cap, step, n = 1) {
   return (b, u) => {
-    const t = first(b.pick(u, 'stat_min', 1, 'def'));
-    u.addbuff('crit', .4, 1, '穿杨'); b.damage(u, t, 2.4 + Math.min(cap, step * (b.round - 1)), 'phys', 0, true);
+    u.addbuff('crit', .4, 1, '穿杨');
+    for (const t of b.pick(u, 'stat_min', n, 'def')) b.damage(u, t, 2.4 + Math.min(cap, step * (b.round - 1)), 'phys', 0, true);
   };
 }
+reg('黄忠老当益壮V7', _huangzhong(1.2, .15, 2));
 reg('黄忠老当益壮', _huangzhong(.8, .1)); reg('黄忠老当益壮15', _huangzhong(1.2, .15));
 function _lianhuanCast(n) {
   return (b, u) => {
@@ -700,13 +704,14 @@ function _lianhuan(u, src, dmg, kind, tag) {
 }
 CUSTOM._hooks = {};
 GLOBAL_HOOKS_EXTRA.on_hit_taken = _lianhuan;
-function _jiangwei(cap, step) {
+function _jiangwei(cap, step, n = 2) {
   return (b, u) => {
     const k = u.stat('atk') >= u.stat('int') ? 'phys' : 'mag';
     const m = 1.8 + Math.min(cap, step * (u.flags['九伐'] || 0)); u.flags['九伐'] = (u.flags['九伐'] || 0) + 1;
-    for (const t of b.pick(u, 'random', 2)) b.damage(u, t, m, k);
+    for (const t of b.pick(u, 'random', n)) b.damage(u, t, m, k);
   };
 }
+reg('姜维九伐V7', _jiangwei(1.2, .2, 3));
 reg('姜维九伐', _jiangwei(.9, .15)); reg('姜维九伐20', _jiangwei(1.2, .2));
 reg('曹操抽兵', (b, u) => { const m = argmax(b.allies(u), x => x.hp); if (m !== u) { const a = m.maxhp * .03; m.hp -= a; u.hp = Math.min(u.maxhp, u.hp + a); } });
 reg('曹操负人', (b, u) => { const n = u.flags['负人'] || 0; if (n < 3) { u.flags['负人'] = n + 1; for (const a of b.allies(u)) a.addbuff('atk', .04 * (n + 1), -1, 'perm负人'); } });
@@ -727,6 +732,17 @@ function _yingshi(k) {
   };
 }
 reg('司马懿鹰视', _yingshi(.8)); reg('司马懿鹰视100', _yingshi(1.0));
+// V0.7 司马懿加强：结算全体 1.0 倍谋略 + 记账 ×1.5（四件 ×2.0）；准备期没挨打改单体 3.0 倍
+function _yingshi2(base, k, solo) {
+  return (b, u) => {
+    const acc = u.flags['记账'] || 0; u.flags['记账中'] = false;
+    const E = b.pick(u, 'all');
+    if (acc > 0) { for (const t of E) { b.damage(u, t, base, 'mag'); b.apply(u, t, acc * k / Math.max(1, E.length), 'mag', '记账'); } }
+    else b.damage(u, first(b.pick(u, 'random')), solo, 'mag');
+  };
+}
+reg('司马懿鹰视B', _yingshi2(1.2, 2.0, 3.2)); reg('司马懿鹰视B4', _yingshi2(1.3, 2.5, 3.6));
+reg('刘禅隐身', (b, u) => { u.hidden = 99; });   // V0.7：只隐身，照常普攻
 function _dengai(n) { return (b, u) => { if (b.round === 3) for (const t of b.pick(u, 'back', n)) b.damage(u, t, 2.0, 'phys', .5); }; }
 reg('邓艾阴平', _dengai(2)); reg('邓艾阴平3', _dengai(3));
 function _sunce(cap) { return (b, u) => { const n = Math.min(cap, (u.flags['霸王'] || 0) + 1); u.flags['霸王'] = n; u.addbuff('atk', .04 * n, -1, 'perm霸王'); }; }
@@ -844,6 +860,7 @@ function wear(u, items, EQ, SET4) {
     u.extras.push(build(parse_line(`被动 | setup:buff(self,${main},6)`), '两件'));
   }
   if (own.length >= 4 && SET4 && SET4[u.name]) u.skill = SET4[u.name];
+  if (own.length >= 4 && SG.SET4_BONUS) { const main = u.role !== '武将' ? 'int' : 'atk'; u.extras.push(build(parse_line(`被动 | setup:buff(self,${main},${SG.SET4_BONUS}); setup:buff(self,def,${SG.SET4_BONUS})`), '四件')); }   // V0.7：四件齐再给主属性、统率
 }
 SG.loadSkills = loadSkills; SG.loadSet4 = loadSet4; SG.wear = wear;
 

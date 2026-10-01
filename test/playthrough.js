@@ -10,6 +10,9 @@ const STRAT_CN = { power: '战力最高', guard: '厚统率带指挥', antimag: 
 const PCFG = { lv_cap: lv => lv, max_try: 15, side_try: 3, per_strat: 3, replay_cap: +(process.env.RCAP || 9), frag_star: [0, 5, 10, 15, 20] };
 const POOL = D.POOL;
 const CANBING = !!process.env.CANBING, VAR = process.env.VAR || '';
+// V0.6 调参：V6=1 时按新规则跑——赢了只有上阵且活着的回 WINR；输了带残兵不回；卡钱卡兵就回头刷上一关（复刷不限）
+const V6 = !!process.env.V6, WINR = +(process.env.WINR || CFG.regen_after_stage), WALL = !process.env.WTEAM;   // 默认按游戏现行：赢了全员回 regen_after_stage；WTEAM=1 只回上阵活着的
+if (process.env.TRAIN) { const [a, b, e] = process.env.TRAIN.split(',').map(Number); CFG.train_cost = lv => Math.round(a + b * Math.pow(lv, e)); }
 const mean = L => L.reduce((a, b) => a + b, 0) / L.length;
 
 class Player {
@@ -70,6 +73,12 @@ class Player {
     if (m) return need.concat(rest).slice(0, { '一': 1, '两': 2, '三': 3 }[m[1]]);
     if (lim.includes('一对一')) return need.concat(rest).slice(0, 1);
     return need.concat(rest).slice(0, 9);
+  }
+  // V0.7 战斗经验（hp 存的是比例：升级新长的一千兵是满的）
+  gainExp(n, e) {
+    const h = this.heroes[n]; if (!h) return 0; const lv0 = h.lv, hp0 = h.hp != null ? h.hp : 1;
+    const up = SG.expAdd(h, e, 50); if (up && h.hp != null) h.hp = Math.min(1, (hp0 * lv0 + up) / h.lv);
+    if (up) this.lvs += up; return up;
   }
   train(names, cap) {
     for (const n of SG.util.sortBy(names, n => -this.power(n))) {
@@ -161,7 +170,7 @@ function conscript(p, names) {   // 残兵版：缺兵三成以上就征兵（4�
   for (const n of names) {
     const h = p.heroes[n], hp = h.hp != null ? h.hp : 1;
     if (hp >= 0.7) continue;
-    const cost = Math.ceil((1 - hp) * h.lv * (VAR === 'C' || VAR === 'DC' ? 1 : 4) * h.lv);
+    const cost = Math.ceil((1 - hp) * h.lv * (process.env.RK ? +process.env.RK : (VAR === 'C' || VAR === 'DC' ? 1 : CFG.recruit_per_k)) * h.lv);
     if (VAR === 'DN') continue;
     if (p.gold >= cost) { p.gold -= cost; p.sp('征兵', cost); h.hp = 1; }
   }
@@ -172,7 +181,9 @@ function fight(p, stage, ease, strat) {
   const gears = p.equip_team(names);
   const A = names.map((n, i) => { const u = mk_player_unit(p, n, i < gears.length ? gears[i] : null); if (CANBING) u.hp = u.maxhp * Math.max(0.001, p.heroes[n].hp != null ? p.heroes[n].hp : 1); return u; });
   const r = SG.fightStage(stage, A, ease, {});
+  if (!process.env.NOEXP && r.foes && r.foes.length) { const flv = r.foes[0].lv, nf = SG.stageFoes(stage, 1).names.length; A.forEach(u => { const h = p.heroes[u.name]; p.gainExp(u.name, SG.expFor(h.lv, flv, nf, r.win, u.alive(), false)); }); }
   if (CANBING) {
+    if (V6) { A.forEach(u => { const h = p.heroes[u.name]; h.hp = Math.max(0, u.hp / u.maxhp); if (r.win && u.hp > 0 && !WALL) h.hp = Math.min(1, h.hp + WINR); }); if (r.win && WALL) for (const n in p.heroes) { const h = p.heroes[n]; h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + WINR); } LAST = [A, r.foes || []]; return [r.win, r.rounds]; }
     if (VAR !== 'D' && VAR !== 'L' && VAR !== 'N' && !r.win) { LAST = [A, r.foes || []]; return [r.win, r.rounds]; }   // V0.6 游戏规则：输了退回出战前，谁都不回（VAR=D 是 V0.5 的输了回满）
     A.forEach(u => { p.heroes[u.name].hp = Math.max(0, u.hp / u.maxhp); });
     const regen = (VAR === 'N') ? 0 : (VAR === 'L' && !r.win) ? 0 : (VAR === 'B' && r.win) ? 1 : ((VAR === 'D' || VAR === 'DC' || VAR === 'DN') && !r.win) ? 1 : VAR === 'A' ? 0.5 : 0.2;
@@ -198,6 +209,13 @@ function run(seed) {
         if (CANBING && process.env.FARM && idx > 0) {   // 复刷不限：队里有人缺兵三成以上，就回头刷上一关（按赢算：拿复刷金、全员回两成），最多 40 次
           const tm = p.team(stage, strat); let k = 0;
           while (k < 40 && tm.some(n => (p.heroes[n].hp != null ? p.heroes[n].hp : 1) < 0.7)) { p.gold += CFG.gold_replay(+STAGES[idx - 1]['等级']); if (VAR !== 'N') for (const n in p.heroes) { const h = p.heroes[n]; h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + 0.2); } k++; if (VAR === 'N') { conscript(p, tm); } p.farm = (p.farm || 0) + 1; }
+        }
+        if (V6 && idx > 0) {
+          const tm = p.team(stage, strat), capL = Math.min(50, cap + Math.min(6, Math.floor(tries / 5)));
+          const need = () => tm.reduce((a, n) => { const h = p.heroes[n], hp = h.hp != null ? h.hp : 1; let c = hp < 0.7 ? Math.ceil((1 - hp) * h.lv * (process.env.RK ? +process.env.RK : CFG.recruit_per_k) * h.lv) : 0; for (let l = h.lv + 1; l <= capL; l++) c += CFG.train_cost(l); return a + c; }, 0);
+          let k = 0;
+          while (k < 200 && p.gold < need()) { p.gold += CFG.gold_replay(+STAGES[idx - 1]['等级']); for (const n of (WALL ? Object.keys(p.heroes) : tm)) { const h = p.heroes[n]; if (WALL || (h.hp != null ? h.hp : 1) > 0) h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + WINR); } k++; }
+          p.farm = (p.farm || 0) + k; (p.farmCh = p.farmCh || {})[ch] = (p.farmCh[ch] || 0) + k;
         }
         if (CANBING) conscript(p, p.team(stage, strat));
         p.train(p.team(stage, strat), Math.min(50, cap + Math.min(6, Math.floor(tries / 5))));
@@ -244,6 +262,7 @@ for (let seed = 0; seed < N; seed++) {
   cleared.push(main.filter(r => r.won).length);
   if (stuck) stucks[`${stuck['章']} ${stuck['关']}`] = (stucks[`${stuck['章']} ${stuck['关']}`] || 0) + 1;
   allres.push(res);
+  if (V6) { (globalThis.FARMS = globalThis.FARMS || []).push(p); }
   console.log(`seed ${seed}: 主线通 ${cleared[cleared.length - 1]}/108，卡在 ${stuck ? stuck['章'] + ' ' + stuck['关'] : '—'}，将领 ${Object.keys(p.heroes).length}，抽了 ${p.draws} 次，开局 ${p.gift.join('、')}，花销 ${JSON.stringify(p.spent)}`);
 }
 const per = {};
@@ -254,6 +273,7 @@ const chap = {};
 for (const k in per) { const [c, , t] = k.split('|'); if (t === '主线' || t === '章末') chap[c] = (chap[c] || []).concat(per[k]); }
 console.log('\n各章主线平均重试：', Object.entries(chap).sort((a, b) => a[0] - b[0]).map(([c, v]) => `${c}:${mean(v).toFixed(1)}`).join(' '));
 console.log('卡关分布：', JSON.stringify(stucks));
+if (V6) { const F = globalThis.FARMS; console.log('回头刷关次数（每局）：均', Math.round(mean(F.map(p => p.farm || 0))), '；分章均：', [1, 5, 10, 15, 20, 26].map(c => c + '章 ' + Math.round(mean(F.map(p => (p.farmCh || {})[c] || 0)))).join('，')); }
 const walls = Object.entries(chap).filter(([c, v]) => mean(v) >= 3).map(([c]) => +c);
 console.log('平均重试 ≥3 的章：', walls.join('、'));
 require('fs').writeFileSync(__dirname + '/playthrough_js.json', JSON.stringify({ allres, stucks, cleared, sec: (Date.now() - t0) / 1000 }));

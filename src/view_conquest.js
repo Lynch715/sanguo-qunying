@@ -198,6 +198,8 @@ Conq.formButtons = cnt => V.cq.kind === 'attack'
   ? `<div class="btns"><div class="btn" data-a="cq-cancel">回地图</div><div class="btn main${cnt ? '' : ' off'}" data-a="cq-go">出征</div></div>`
   : `<div class="btns">${V.cq.plan.best === W().st.capital[W().st.me] ? '' : '<div class="btn" data-a="cq-def-auto">自动守</div>'}<div class="btn main${cnt ? '' : ' off'}" data-a="cq-def-go">守城</div></div>`;
 ACT['cq-cancel'] = () => { V.cq = null; SG.go('map'); };
+// V0.7：这一仗谁升了级
+function xpUp(w) { const L = (w.lastExp || []).filter(x => x.up); w.lastExp = null; return L.length ? `<br>${L.map(x => `${esc(x.n)}升到 ${x.lv} 级`).join('，')}。` : ''; }
 function picks() { const g = G(), pool = new Set(Conq.pool()); return g.s.formation.map((n, i) => [n, i]).filter(([n]) => n && pool.has(n)); }
 ACT['cq-go'] = () => {
   const g = G(), w = W(), n = V.cq.city;
@@ -214,6 +216,7 @@ ACT['cq-go'] = () => {
     note = `${esc(n)} 归你了。${res.caught.length ? `俘虏 ${res.caught.map(esc).join('、')}，去俘虏营花钱招降。` : ''}${res.fell === 'dead' ? `${res.old}只剩这几座城，就此灭了。` : res.fell === 'moved' ? `${res.old}迁都${esc(res.cap)}。` : ''}`;
     g.s.news.push(`第 ${w.st.turn} 回合：攻下${n}。`);
   } else { note = `没打下来。${esc(n)} 守军兵力还剩 ${Math.round(w.st.city[n].hp * 100)}%，过几回合会回满。`; g.s.news.push(`第 ${w.st.turn} 回合：攻${n}没下。`); }
+  note += xpUp(w);
   V.cq = null; saveCq();
   SG.Play.begin({ res: { win: res.won, battles: [b] }, rew: {}, title: `出征 ${n}`, note, back: 'map', backAct: 'cq-after' });
 };
@@ -276,6 +279,7 @@ function defend(names, cells) {
   let note;
   if (out.won) { note = `${esc(plan.best)} 丢了。${out.lostGuard ? `守将 ${esc(out.lostGuard)} 被俘。` : ''}`; g.s.turnNews.push(`${plan.f}打下你的${plan.best}。`); }
   else { note = `守住了。${out.caught.length ? `${out.caught.map(esc).join('、')} 战死被擒，进了俘虏营。` : ''}`; g.s.turnNews.push(`${plan.f}攻${plan.best}，被你守住。`); }
+  note += xpUp(w);
   saveCq();
   SG.Play.begin({ res: { win: !out.won, battles: [b] }, rew: {}, title: `守 ${plan.best}`, note, winTxt: out.won ? '城破' : '守住', back: 'map', backAct: 'cq-resume', backTxt: '接着过回合' });
 }

@@ -114,6 +114,13 @@ class World {
   }
   my_units(names) { return this.p.cqUnits(names); }
   save_hp(A) { for (const u of A) this.p.cqSetHp(u.name, Math.max(0.05, u.hp / u.maxhp)); }
+  // V0.7 战斗经验：跟闯关同一套（霸业没有复刷）。先存兵力比例再升级，升级新长的一千兵是满的
+  give_exp(A, B, win) {
+    if (!this.p.gainExp || !A.length) return [];
+    const flv = Math.max(...B.map(u => u.lv)), out = [];
+    for (const u of A) { const h = this.p.heroes[u.name]; if (!h) continue; const e = SG.expFor(h.lv, flv, B.length, win, u.alive(), false); out.push({ n: u.name, e, up: this.p.gainExp(u.name, e), lv: h.lv }); }
+    this.lastExp = out; return out;
+  }
   recover() { for (const n in this.p.heroes) this.p.cqSetHp(n, Math.min(1.0, this.p.cqHp(n) + 0.2)); }
   my_power(names) { const p = this.p; return names.reduce((a, n) => a + p.cqPower(n) * p.heroes[n].lv / 10 * (0.5 + 0.5 * p.cqHp(n)), 0); }
   // ----- 回合开始：进账、回兵 -----
@@ -133,7 +140,7 @@ class World {
   // ----- 玩家攻城（battle 由调用方用 A、B 跑好传进来） -----
   afterAttack(best, A, B, w) {
     const st = this.st, me = st.me, D = SG.D;
-    this.save_hp(A);
+    this.save_hp(A); this.give_exp(A, B, w === 0);
     if (w !== 0) { this.save_foe_hp(best, B); return { won: false }; }
     const c = st.city[best], old = c.owner;
     const caught = [];
@@ -230,7 +237,7 @@ class World {
     const won = !A.length || w === 1;
     const out = { won, caught: [], lostGuard: null };
     if (A.length) {
-      this.save_hp(A); this.save_foe_hp(a, B);
+      this.save_hp(A); this.save_foe_hp(a, B); this.give_exp(A, B, !won);
       if (!won) {
         const dead = B.filter(u => !u.alive() && D.H[u.name]).map(u => u.name);
         for (const x of dead) { const i = st.city[a].garrison.indexOf(x); if (i >= 0) st.city[a].garrison.splice(i, 1); st.prisoners.push([x, f, st.turn]); out.caught.push(x); }
@@ -308,6 +315,7 @@ class ConquestGame extends SG.Game {
   }
   drawGold() { return null; }
   recruitCost(n) { const h = this.hero(n); const lack = Math.max(0, h.lv * 1000 - h.hp); return Math.ceil(lack / 1000 * SG.CFG.recruit_per_k_conquest * h.lv); }
+  trainPrice(lv) { return SG.CFG.train_cost_conquest(lv); }   // V0.7：霸业练级用老价
   curChapter() { return 26; }
   guards() { const w = this.world, out = {}; for (const c of w.cities(w.st.me)) { const g = w.st.city[c].guard; if (g) out[g] = c; } return out; }
   toJSON() { this.s.world = this.world.st; return JSON.stringify(this.s); }

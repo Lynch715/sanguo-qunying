@@ -58,7 +58,8 @@ for (const nm of ['神亭酣斗', '过五关斩六将', '据水断桥', '草船�
   for (const s of D.STAGES) { if (s._i < hard._i && (s['类型'] === '主线' || s['类型'] === '章末')) g.s.cleared[s.id] = 1; }
   const F = [a, null, null, null, null, null, null, null, null];
   const r = g.fight(hard.id, F, { seed: 1, quick: true });
-  ok(!r.res.win && g.hero(a).hp === Math.max(0, r.res.A[0].hp) && g.hero(a).hp < 1700 && g.hero('诸葛亮').hp === 300, `V0.6 输了带残兵（1700 → ${Math.round(g.hero(a).hp)}），谁都不回`);
+  const up = r.rew.exp[0].up;
+  ok(!r.res.win && g.hero(a).hp === Math.max(0, r.res.A[0].hp) + up * 1000 && g.hero('诸葛亮').hp === 300, `V0.6 输了带残兵、谁都不回（1700 → ${Math.round(g.hero(a).hp)}，其中升 ${up} 级新长 ${up * 1000}）`);
   ok(g.recruitCost(a) > 0, 'V0.6 输了只能征兵补');
 }
 {
@@ -82,6 +83,25 @@ for (const nm of ['神亭酣斗', '过五关斩六将', '据水断桥', '草船�
   ok(n5 > 0 && !bad, `V0.6 铁匠铺专属只出已拥有的无双（出了 ${n5} 件）`);
   // 每个无双两个出处关
   ok(Object.keys(D.EXSRC_OF).length === 36 && Object.values(D.EXSRC_OF).every(L => L.length === 2 && L.every(id => D.STAGE[id])), 'V0.6 36 个无双各两个出处关');
+}
+// ---- V0.7 战斗经验 ----
+{
+  const C = SG.CFG;
+  ok(SG.expFor(10, 20, 6, true, true, false) === 1200, 'V0.7 赢了 10×敌方等级×人数');
+  ok(SG.expFor(10, 20, 6, false, true, false) === 400, 'V0.7 输了三分之一');
+  ok(SG.expFor(10, 20, 6, true, false, false) === 600 && SG.expFor(10, 20, 6, true, true, true) === 600, 'V0.7 阵亡、复刷各减半');
+  ok(SG.expFor(25, 20, 6, true, true, false) === 240, 'V0.7 高 5 级以上只拿两成');
+  ok(SG.expFor(5, 50, 6, true, true, false) === 900, 'V0.7 敌方高出 10 级以上按高 10 级算');
+  const h = { lv: 1, exp: 0 }; const u1 = SG.expAdd(h, 10 + 40 + 5, 50);
+  ok(u1 === 2 && h.lv === 3 && h.exp === 5, 'V0.7 升级要 10×等级²，连升、余数保留');
+  const h2 = { lv: 49, exp: 0 }; SG.expAdd(h2, 1e6, 50); ok(h2.lv === 50 && h2.exp === 0, 'V0.7 满级不再长，多的不留');
+  const g = SG.Game.fresh(21);
+  for (const x of ['关羽', '张飞', '赵云']) { g.addHero(x); Object.assign(g.hero(x), { lv: 5, hp: 5000 }); }
+  const bench = Object.keys(g.s.heroes).find(n => !['关羽', '张飞', '赵云'].includes(n)); const bexp = g.hero(bench).exp || 0;
+  const r = g.fight(D.STAGES[0].id, ['关羽', '张飞', '赵云', null, null, null, null, null, null], { seed: 2, quick: true });
+  ok(r.res.win && r.rew.exp.length === 3 && r.rew.exp.every(x => x.e > 0) && (g.hero(bench).exp || 0) === bexp, 'V0.7 只有上阵的人拿经验');
+  const k0 = g.hero('关羽'); g.s.gold = 1e6; const e0 = k0.exp; g.train('关羽', 1); ok(k0.exp === e0, 'V0.7 金币练级不清经验');
+  ok(SG.CFG.train_cost_conquest(10) === 70, 'V0.7 霸业练级老价');
 }
 // 存档往返
 const s2 = SG.Game.load(h2.toJSON()); ok(s2 && Object.keys(s2.s.heroes).length === Object.keys(h2.s.heroes).length, '存档往返');

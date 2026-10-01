@@ -177,7 +177,7 @@ id	名	槽	档	类别	固定	百分比	维	归属	DSL
 盔甲_175	留香锦袍	盔甲	神品	专属	27	6	def	荀彧	
 马匹_176	颍川青骢	马匹	神品	专属	21	6	agi	荀彧	
 宝物_177	空食盒	宝物	神品	专属	21	6	int	荀彧	death:heal(aall,10)@once
-武器_178	鹰视剑	武器	神品	专属	30	6	int	司马懿	setup:flag(prep_guard,0.2)
+武器_178	鹰视剑	武器	神品	专属	30	6	int	司马懿	setup:flag(prep_guard,0.45)
 盔甲_179	隐忍布袍	盔甲	神品	专属	27	6	def	司马懿	
 马匹_180	辽东追风	马匹	神品	专属	21	6	agi	司马懿	
 宝物_181	巾帼	宝物	神品	专属	21	6	int	司马懿	setup:flag(immune_taunt)

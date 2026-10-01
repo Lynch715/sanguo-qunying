@@ -2,6 +2,7 @@
 const { SG, DATA } = require('./load_node'); SG.init(DATA); SG.FX7 = false;
 const { Player } = require('./playthrough');
 const D = SG.D, H = D.H, CFG = SG.CFG, CQ = SG.CQ, FACTIONS = SG.CQ_FACTIONS, RANSOM = SG.CQ_RANSOM;
+CFG.train_cost = CFG.train_cost_conquest;   // V0.7：霸业练级用老价（傻子玩家借用闯关的 Player.train）
 const DEF = [], SNAP = [], ACTS = {}, ATK = [];
 const mean = L => L.reduce((a, b) => a + b, 0) / L.length;
 function conscript(w, names) {

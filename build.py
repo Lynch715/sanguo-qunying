@@ -9,7 +9,7 @@
 """
 import csv, hashlib, json, os, re, sys
 
-VERSION = '0.6'
+VERSION = '0.7'
 ROOT = os.path.dirname(os.path.abspath(__file__))
 NOASSETS = '--noassets' in sys.argv
 SRC = ['engine_battle.js', 'engine_game.js', 'engine_ach.js', 'engine_conquest.js', 'saveio.js', 'view.js', 'view_conquest.js', 'pwa.js']
@@ -172,7 +172,7 @@ def main():
     data = {
         'version': VERSION,
         'heroes': heroes(), 'skills': tsv('skills_dsl.tsv'), 'equip': tsv('equip.tsv'),
-        'set4': tsv('set4.tsv'), 'stages': tsv('stages.tsv'), 'cities': tsv('cities.tsv'), 'bonds': bonds(), 'exsrc': exsrc(),
+        'set4': tsv('set4.tsv'), 'stages': tsv('stages.tsv'), 'cities': tsv('cities.tsv'), 'bonds': bonds(), 'exsrc': exsrc(), 'skpow': tsv('skill_power.tsv') if os.path.exists(os.path.join(ROOT, 'data', 'skill_power.tsv')) else [],
         'story': story(), 'crawl': crawl(), 'sets': set_text(), 'portraits': portraits(), 'scenes': scenes(),
     }
     js_data = 'window.SGDATA=' + json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/') + ';'
