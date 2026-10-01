@@ -1,8 +1,10 @@
 /* 三国群英录 · service worker（照水浒群星录的做法）
    代码（html/js/manifest）网络优先：联网打开永远是新版，断网才用缓存。
    图片缓存优先：地址都带 ?v=内容哈希，换了图地址就变，缓存里有就一定是对的。
-   VER 由 build.py 按版本号和页面哈希写入，改版旧缓存自动清掉。 */
-const VER = 'sgqyl-0.7-b67c86f4';
+   VER 由 build.py 按版本号和页面哈希写入，改版旧缓存自动清掉。
+   V0.7：图片单独放一个不随版本清的缓存（IMG），改版不用重下全部立绘；地址带哈希，换了图自然是新地址。 */
+const VER = 'sgqyl-0.7-c8f4766c';
+const IMG = 'sgqyl-img';
 const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico', './assets/icons/icon-192.png', './assets/icons/icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -10,7 +12,7 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(ks => Promise.all(ks.filter(k => k !== VER).map(k => caches.delete(k))))
+    .then(ks => Promise.all(ks.filter(k => k !== VER && k !== IMG).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 const isImg = u => /\.(webp|png|jpg|jpeg|ico|svg)$/i.test(u.pathname);
@@ -20,7 +22,7 @@ self.addEventListener('fetch', e => {
   const u = new URL(req.url);
   if (u.origin !== location.origin) return;
   if (isImg(u)) {
-    e.respondWith(caches.open(VER).then(async c => {
+    e.respondWith(caches.open(IMG).then(async c => {
       const hit = await c.match(req);
       if (hit) return hit;
       return fetch(req).then(r => { if (r.ok) c.put(req, r.clone()); return r; });

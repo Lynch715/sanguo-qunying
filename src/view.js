@@ -33,10 +33,15 @@ function ask(title, body, yes, fn) {
   openModal(`<div class="shead">${esc(title)}</div><div class="small">${body}</div>
     <div class="btns"><div class="btn" data-a="close">算了</div><div class="btn main" data-a="ask-yes">${esc(yes)}</div></div>`);
 }
-function por(name, size = 'l', extra = '') {
+// V0.7：立绘缓存。加载过的地址记下来，再画时不走懒加载、同步解码，切页不闪；
+// 进游戏后空闲时把中档图挨个预取一遍（离线缓存由 service worker 存住），手里的人再留一份解码好的在内存里
+const PORT_OK = new Set(), PORT_HOLD = [];
+document.addEventListener('load', e => { const t = e.target; if (t && t.tagName === 'IMG' && t.closest('.por')) PORT_OK.add(t.getAttribute('src')); }, true);
+function por(name, size = 'm', extra = '') {
   const p = (D0.portraits || {})[name];
   const mob = !D.H[name];
-  if (p) return `<div class="por${mob ? ' mob' : ''}${extra}"><img src="${p[size]}" alt="${esc(name)}" loading="lazy" decoding="async"></div>`;
+  const src = p && (p[size] || p.l);
+  if (src) return `<div class="por${mob ? ' mob' : ''}${extra}"><img src="${src}" alt="${esc(name)}"${PORT_OK.has(src) ? ' decoding="sync"' : ' loading="lazy" decoding="async"'}></div>`;
   return `<div class="por${mob ? ' mob' : ''}${extra}"><span class="ph">${esc(name)}</span></div>`;
 }
 const store = {
@@ -46,6 +51,26 @@ const store = {
 };
 SG.cqAch = { get: () => { try { return JSON.parse(store.get('sgqyl_cq_ach') || '{}'); } catch (e) { return {}; } }, set: o => store.set('sgqyl_cq_ach', JSON.stringify(o)) };
 SG.ui = { $, esc, num, toast, openModal, closeModal, ask, por, store, TSEAL, facTag, stars, eqSeal, KEYCN, clamp };
+// 预取：先手里的人（解码后留在内存），再全部中档、小图（只进缓存）。一次最多 4 张并发，不跟正常加载抢
+SG.warmPortraits = function () {
+  if (SG._warmed || !D0.portraits) return; SG._warmed = true;
+  const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
+  const own = (G && G.s && G.s.heroes) ? Object.keys(G.s.heroes) : [];
+  const hot = own.map(n => D0.portraits[n] && (D0.portraits[n].m || D0.portraits[n].l)).filter(Boolean).slice(0, 60);
+  const all = [];
+  for (const n in D0.portraits) { const p = D0.portraits[n]; if (p.m) all.push(p.m); if (p.s) all.push(p.s); }
+  const q = hot.concat(all.filter(u => !hot.includes(u))); let i = 0, run = 0;
+  const next = () => {
+    while (run < 4 && i < q.length) {
+      const u = q[i++]; if (PORT_OK.has(u)) continue; run++;
+      const im = new Image(); im.decoding = 'async';
+      im.onload = () => { PORT_OK.add(u); if (hot.includes(u)) PORT_HOLD.push(im); run--; idle(next); };
+      im.onerror = () => { run--; idle(next); };
+      im.src = u;
+    }
+  };
+  idle(next);
+};
 
 // ---------------- 状态 ----------------
 const V = { mode: 'title', view: 'stages', hero: null, stage: null, sel: null, open: {}, filt: { fac: '全', tier: '全', role: '全' }, sort: 'power', battle: null, bagSlot: '全' };
@@ -92,6 +117,7 @@ function navBar() {
 // ---------------- 渲染入口 ----------------
 function render() {
   const app = $('app');
+  if (G && !SG._warmed && V.mode !== 'title') setTimeout(SG.warmPortraits, 1500);
   if (V.mode === 'title') { app.innerHTML = `<div class="app">${titleHtml()}</div>`; return; }
   if (V.view === 'battle') { app.innerHTML = `<div class="app wide">${battleHtml()}</div>`; Play.mount(); return; }
   const body = (VIEWS[V.view] || VIEWS.stages)();

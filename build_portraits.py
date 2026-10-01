@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 PDIR = os.path.join(ROOT, 'assets', 'portraits')
 ARTD = os.path.join(ROOT, 'assets', '立绘')   # V0.7 起原图都在这里，按档分文件夹
 WEB = os.path.join(PDIR, 'web')
-SIZES = (('s', 96), ('l', 480))
+SIZES = (('s', 96), ('m', 240), ('l', 480))   # V0.7：加中档 m，卡片、布阵格、战场用，比 l 小四分之三
 EXTS = ('.png', '.jpg', '.jpeg', '.webp')
 
 

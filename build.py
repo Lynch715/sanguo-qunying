@@ -137,6 +137,8 @@ def portraits():
             out[r['名']] = {'s': f'assets/portraits/web/s_{fn}.webp?v={fhash(s)}',
                             'l': f'assets/portraits/web/l_{fn}.webp?v={fhash(l)}',
                             'k': r['类别']}
+            m = os.path.join(web, f'm_{fn}.webp')
+            if os.path.exists(m): out[r['名']]['m'] = f'assets/portraits/web/m_{fn}.webp?v={fhash(m)}'
     return out
 
 
