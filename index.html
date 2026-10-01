@@ -360,6 +360,7 @@ ol.lic li{margin:2px 0}
 /* V0.7 经验 */
 .bar.xp em{background:var(--qing, #3b7a8f)}
 .xpdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--zhu);margin-left:3px;vertical-align:middle}
+.hc .meta.st{font-size:.66em;color:var(--ink-2);gap:2px;white-space:nowrap}
 
 </style>
 </head>
@@ -2774,9 +2775,13 @@ function heroCard(n, act, extraCls = '') {
     <span class="tag">${TSEAL(h['品阶'])}${guardOf(n) ? ` <span class="seal" style="background:var(--ink-2)">守${esc(guardOf(n))}</span>` : ''}</span>${G.canStar(n) ? '<span class="dot"></span>' : ''}
     ${por(n)}
     <div class="nm">${facTag(h['阵营'])}${esc(n)}</div>
-    <div class="meta"><span>${s.lv}级</span><span class="stars">${stars(s.star)}</span></div>
+    <div class="meta"><span>Lv.${s.lv}</span><span class="stars">${stars(s.star)}</span></div>
+    ${(() => { const p = G.panel(n), wj = h['定位'] === '武将'; return `<div class="meta st"><span>${wj ? '武' : '智'} ${Math.round(wj ? p.atk : p.int)}</span><span>统 ${Math.round(p.def)}</span><span>速 ${Math.round(p.agi)}</span></div>`; })()}
+    <div class="meta st"><span>兵 ${wan(s.hp)} / ${wan(s.lv * 1000)}</span></div>
     <div class="bar"><em class="${r < .5 ? 'low' : ''}" style="width:${clamp(r * 100, 0, 100)}%"></em></div></div>`;
 }
+// 兵力简写：一万以下照写，一万以上写「1.82万」
+function wan(x) { x = Math.max(0, Math.round(x)); return x < 10000 ? String(x) : (Math.round(x / 100) / 100) + '万'; }
 function filterBar() {
   const chip = (k, v, t) => `<span class="chip${V.filt[k] === v ? ' on' : ''}" data-a="filt" data-k="${k}" data-v="${v}">${t || v}</span>`;
   const sch = (v, t) => `<span class="chip${V.sort === v ? ' on' : ''}" data-a="sort" data-v="${v}">${t}</span>`;

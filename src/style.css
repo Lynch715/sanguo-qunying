@@ -345,3 +345,4 @@ ol.lic li{margin:2px 0}
 /* V0.7 经验 */
 .bar.xp em{background:var(--qing, #3b7a8f)}
 .xpdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--zhu);margin-left:3px;vertical-align:middle}
+.hc .meta.st{font-size:.66em;color:var(--ink-2);gap:2px;white-space:nowrap}
