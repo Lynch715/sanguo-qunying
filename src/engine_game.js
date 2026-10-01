@@ -26,7 +26,7 @@ SG.MOBS = MOBS; SG.MOBG = MOBG; SG.MOB_FAC = MOB_FAC; SG.MOB_FILE = MOB_FILE;
 const CFG = {
   gold_clear: lv => 200 + 40 * lv,
   gold_replay: lv => 40 + 10 * lv,
-  train_cost: lv => 20 + lv * lv,   // V0.6：原 20+5×等级，涨幅太小
+  train_cost: lv => 200 + lv * lv,   // V0.7：前期太便宜（开局 1000 金能练到 12 级），底价 20 → 200
   train_cost_conquest: lv => 20 + 5 * lv,   // V0.7：霸业钱少、没有复刷，练级用老价
   // V0.7 战斗经验：上阵的人拿；赢了 10×敌方等级×敌方人数，输了三分之一，阵亡减半，复刷减半，比敌方高 5 级以上只拿两成；升一级要 10×等级²
   exp_win: (lv, n) => 10 * lv * n, exp_lose: 1 / 3, exp_dead: .5, exp_replay: .5, exp_over: 5, exp_over_k: .2, exp_under: 10,

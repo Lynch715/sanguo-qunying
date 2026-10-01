@@ -9,7 +9,7 @@ g.s.gold = 100000;
 const r = g.draw(10); ok(r.length === 10 && r.some(x => ['名', '虎', '无双'].includes(x.tier)), '十连保底名');
 let hu = 0; g.s.sinceHu = 49; const r2 = g.draw(1); ok(['虎', '无双'].includes(r2[0].tier), '五十抽保底虎');
 const n = Object.keys(g.s.heroes)[0];
-const g0 = g.s.gold; g.train(n, 10); ok(g.hero(n).lv === 11 && g0 - g.s.gold === [...Array(10)].reduce((a, _, i) => a + 20 + (i + 2) * (i + 2), 0), '练级价 20+目标等级²');
+const g0 = g.s.gold; g.train(n, 10); ok(g.hero(n).lv === 11 && g0 - g.s.gold === [...Array(10)].reduce((a, _, i) => a + 200 + (i + 2) * (i + 2), 0), '练级价 200+目标等级²');
 g.hero(n).hp = 5000; const rc = g.recruitCost(n); ok(rc === Math.ceil(6 * 2 * 11), '征兵 2×等级每千兵 ' + rc);
 g.buyTokens(12); ok(g.s.tokensBought === 12 && g.tokenPrice() === 525, '兵符十枚涨 25');
 const need = g.starNeed(n); ok(need === Math.trunc(SG.util.pyRound(5 * SG.CFG.star_q[D.H[n]['品阶']])), '升星所需 ' + need);
