@@ -110,7 +110,7 @@ function topBar() {
 }
 function navBar() {
   const cq = G.kind === 'conquest';
-  const cur = V.view === 'hero' ? 'heroes' : (V.view === 'battle' || V.view === 'form') && cq ? 'map' : V.view === 'battle' ? 'stages' : V.view;
+  const cur = V.view === 'hero' ? (V.heroFrom === 'form' ? (cq ? 'map' : 'form') : V.heroFrom === 'codex' ? 'codex' : 'heroes') : (V.view === 'battle' || V.view === 'form') && cq ? 'map' : V.view === 'battle' ? 'stages' : V.view;
   return `<div class="nav"><div class="inner${cq ? '' : ' two'}">${(cq ? NAV_CQ : NAV).map(([k, t]) => `<div class="tab${cur === k ? ' on' : ''}" data-a="go" data-v="${k}">${t}</div>`).join('')}</div></div>`;
 }
 
@@ -124,7 +124,7 @@ function render() {
   app.innerHTML = `<div class="app">${topBar()}${body}</div>${navBar()}`;
 }
 SG.render = render;
-function go(v) { V.view = v; V.sel = null; render(); window.scrollTo(0, 0); }
+function go(v) { V.view = v; V.sel = null; if (v !== 'hero') V.heroFrom = null; render(); window.scrollTo(0, 0); }
 
 // ---------------- 标题 ----------------
 function titleHtml() {
@@ -235,24 +235,28 @@ VIEWS.ach = () => {
   return h;
 };
 // ---------------- 图鉴 ----------------
+// 图鉴各段可收起，默认收着
+const cxOpen = k => !!(V.cx || {})[k];
+const cxHd = (k, title, tp) => `<div class="sec cxh" data-a="cx-tog" data-k="${k}" style="cursor:pointer"><h2>${title}</h2><span class="line"></span><span class="tp">${tp}${tp ? '　' : ''}${cxOpen(k) ? '收起 ▴' : '展开 ▾'}</span></div>`;
 VIEWS.codex = () => {
   const own = D.HLIST.filter(n => G.s.heroes[n]).length;
   let h = `<div class="stele"><div class="st-t">群 英 录</div><div class="st-s">名字先写好，人后来到</div><div class="st-n"><b>${own}</b> / ${D.HLIST.length}</div></div>`;
   for (const f of ['魏', '蜀', '吴', '汉', '无']) {
     const L = D.HLIST.filter(n => D.H[n]['阵营'] === f).sort((a, b) => SG.TIER_ORDER.indexOf(D.H[b]['品阶']) - SG.TIER_ORDER.indexOf(D.H[a]['品阶']));
     const o = L.filter(n => G.s.heroes[n]).length;
-    h += `<div class="sec"><h2>${f === '无' ? '群雄' : f} ${o}/${L.length}</h2><span class="line"></span></div><div class="codex">${L.map(n => {
+    h += cxHd(f, `${f === '无' ? '群雄' : f} ${o}/${L.length}`, '') + (cxOpen(f) ? `<div class="codex">${L.map(n => {
       const has = !!G.s.heroes[n];
-      return `<span class="cx ${has ? 'c-' + D.H[n]['品阶'] : 'no'}"${has ? ` data-a="hero" data-n="${esc(n)}"` : ''}>${has ? esc(n) : '？'}</span>`; }).join('')}</div>`;
+      return `<span class="cx ${has ? 'c-' + D.H[n]['品阶'] : 'no'}"${has ? ` data-a="hero" data-from="codex" data-n="${esc(n)}"` : ''}>${has ? esc(n) : '？'}</span>`; }).join('')}</div>` : '');
   }
   const ex = Object.keys(D.EXCL);
   const haveIds = new Set(G.s.bag.map(it => it.id));
-  h += `<div class="sec"><h2>专属套装</h2><span class="line"></span><span class="tp">${ex.filter(n => D.EXCL[n].every(e => haveIds.has(e.id))).length}/${ex.length} 套凑齐</span></div><div class="codex">${ex.map(n => {
+  h += cxHd('ex', '专属套装', `${ex.filter(n => D.EXCL[n].every(e => haveIds.has(e.id))).length}/${ex.length} 套凑齐`);
+  if (cxOpen('ex')) h += `<div class="codex">${ex.map(n => {
     const k = D.EXCL[n].filter(e => haveIds.has(e.id)).length;
     return `<span class="cx ${k ? 'c-无双' : 'no'}" data-a="eq-info" data-id="${esc(D.EXCL[n][0].id)}">${esc((D0.sets[n] || {}).set || n)}<small>${k}/4</small></span>`; }).join('')}</div>`;
   const full = SG.BONDS.filter(b => b.mem.every(m => G.s.heroes[m])).length;
-  h += `<div class="sec"><h2>羁绊</h2><span class="line"></span><span class="tp">${full}/${SG.BONDS.length} 条人已收齐</span></div>`;
-  h += SG.BONDS.map(b => `<div class="brow${b.mem.every(m => G.s.heroes[m]) ? ' ok' : ''}"><b class="kai">${esc(b.name)}</b><span class="tiny">${bondVal(b)}</span><div class="bms">${bondMem(b)}</div>${b.txt ? `<div class="tiny muted">${esc(b.txt)}</div>` : ''}</div>`).join('');
+  h += cxHd('bond', '羁绊', `${full}/${SG.BONDS.length} 条人已收齐`);
+  if (cxOpen('bond')) h += SG.BONDS.map(b => `<div class="brow${b.mem.every(m => G.s.heroes[m]) ? ' ok' : ''}"><b class="kai">${esc(b.name)}</b><span class="tiny">${bondVal(b)}</span><div class="bms">${bondMem(b)}</div>${b.txt ? `<div class="tiny muted">${esc(b.txt)}</div>` : ''}</div>`).join('');
   return h;
 };
 function chapCard(c) {
@@ -416,9 +420,10 @@ VIEWS.hero = () => {
     }).join('');
     exHtml = `<div class="card small"><b class="kai">专属·${esc(st ? st.set : '')}</b><div>${own}</div>${G.kind === 'conquest' ? '' : `<div class="tiny" style="margin-top:2px">${exSrcHtml(n)}</div>`}${st ? `<div class="muted tiny" style="margin-top:4px">武器：${esc(st.w)}<br>宝物：${esc(st.t)}<br>两件：主属性 +6%　四件：主属性、统率再 +6%；${esc(st.four)}</div>` : ''}</div>`;
   }
-  const L = sortedHeroes(), i = L.indexOf(n);
-  return `<div class="row" style="margin-bottom:8px"><span class="btn sm" data-a="go" data-v="heroes">← 将领</span><span class="grow"></span>
-      ${i > 0 ? `<span class="btn sm" data-a="hero" data-n="${esc(L[i - 1])}">上一个</span>` : ''}${i >= 0 && i < L.length - 1 ? `<span class="btn sm" data-a="hero" data-n="${esc(L[i + 1])}">下一个</span>` : ''}</div>
+  const fromForm = V.heroFrom === 'form' && G.s.formation.includes(n);
+  const L = fromForm ? G.s.formation.filter(Boolean) : sortedHeroes(), i = L.indexOf(n), nx = fromForm ? 'form-hero' : 'hero';
+  return `<div class="row" style="margin-bottom:8px">${fromForm ? '<span class="btn sm" data-a="go" data-v="form">← 布阵</span><span class="btn sm" data-a="form-off" style="margin-left:6px">下阵</span>' : (V.heroFrom === 'codex' ? '<span class="btn sm" data-a="go" data-v="codex">← 图鉴</span>' : '<span class="btn sm" data-a="go" data-v="heroes">← 将领</span>')}<span class="grow"></span>
+      ${i > 0 ? `<span class="btn sm" data-a="${nx}" data-n="${esc(L[i - 1])}">上一个</span>` : ''}${i >= 0 && i < L.length - 1 ? `<span class="btn sm" data-a="${nx}" data-n="${esc(L[i + 1])}">下一个</span>` : ''}</div>
     <div class="hd-top">${por(n, 'l')}<div class="info">
       <div class="hd-name">${esc(n)}</div>
       <div class="row wrap" style="margin:4px 0">${TSEAL(h['品阶'])}${facTag(h['阵营'])}<span class="small muted">${esc(h['定位'])}</span></div>
@@ -468,7 +473,7 @@ VIEWS.form = () => {
       const i = r * 3 + c, n = F[i];
       if (n && G.hero(n)) {
         const s = G.hero(n), ratio = s.hp / (s.lv * 1000);
-        grid += `<div class="gcell${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">${por(n)}<div class="gn">${esc(n)} Lv.${s.lv}${s.lv < G.maxLv() && (s.exp || 0) >= SG.CFG.exp_need(s.lv) * .9 ? '<i class="xpdot"></i>' : ''}</div>${(() => { const p = G.panel(n), wj = D.H[n]['定位'] === '武将'; return `<div class="gs"><span>${wj ? '武' : '智'} ${Math.round(wj ? p.atk : p.int)}</span><span>统 ${Math.round(p.def)}</span></div><div class="gs"><span>速 ${Math.round(p.agi)}</span><span>兵 ${wan(s.hp)}</span></div>`; })()}<div class="bar"><em class="${ratio < .5 ? 'low' : ''}" style="width:${clamp(ratio * 100, 0, 100)}%"></em></div></div>`;
+        grid += `<div class="gcell fill" data-a="form-hero" data-n="${esc(n)}" data-i="${i}">${por(n)}<div class="gn">${esc(n)} Lv.${s.lv}${s.lv < G.maxLv() && (s.exp || 0) >= SG.CFG.exp_need(s.lv) * .9 ? '<i class="xpdot"></i>' : ''}</div>${(() => { const p = G.panel(n), wj = D.H[n]['定位'] === '武将'; return `<div class="gs"><span>${wj ? '武' : '智'} ${Math.round(wj ? p.atk : p.int)}</span><span>统 ${Math.round(p.def)}</span></div><div class="gs"><span>速 ${Math.round(p.agi)}</span><span>兵 ${wan(s.hp)}</span></div>`; })()}<div class="bar"><em class="${ratio < .5 ? 'low' : ''}" style="width:${clamp(ratio * 100, 0, 100)}%"></em></div></div>`;
       } else grid += `<div class="gcell empty-c${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">空</div>`;
     }
   }
@@ -492,7 +497,7 @@ VIEWS.form = () => {
     </div>
     ${st ? `<div class="btns"><div class="btn" data-a="go" data-v="stages">回去</div><div class="btn main${cnt && cnt <= lim.max ? '' : ' off'}" data-a="fight">出战</div></div>` : ''}
     ${V.cq && SG.Conq ? SG.Conq.formButtons(cnt) : ''}
-    <div class="sec"><h2>${V.sel != null ? `选人放进${ROWLAB[Math.floor(V.sel / 3)]}第 ${V.sel % 3 + 1} 格` : '点人上阵，点阵上的人换位或下阵'}</h2><span class="line"></span></div>
+    <div class="sec"><h2>${V.sel != null ? `选人放进${ROWLAB[Math.floor(V.sel / 3)]}第 ${V.sel % 3 + 1} 格` : '点人上阵，点阵上的人看详情，拖动换位'}</h2><span class="line"></span></div>
     ${filterBar()}
     <div class="hgrid">${L.map(n => heroCard(n, 'pick')).join('')}</div>`;
 };
@@ -998,7 +1003,8 @@ const ACT = {
     if (G.s.formation.filter(Boolean).length > lim.max || !G.s.formation.some(Boolean)) autoForm(lim.max);
     go('form');
   },
-  hero: el => { V.hero = el.dataset.n; V.view = 'hero'; render(); window.scrollTo(0, 0); },
+  'cx-tog': el => { V.cx = V.cx || {}; V.cx[el.dataset.k] = !V.cx[el.dataset.k]; render(); },
+  hero: el => { V.hero = el.dataset.n; V.heroFrom = el.dataset.from || null; V.view = 'hero'; render(); window.scrollTo(0, 0); },
   filt: el => { V.filt[el.dataset.k] = el.dataset.v; render(); },
   sort: el => { V.sort = el.dataset.v; render(); },
   train: el => { const k = +el.dataset.k; const n = G.train(V.hero, k); if (!n) toast(G.hero(V.hero).lv >= G.maxLv() ? '已到上限' : '钱不够'); save(); render(); },
@@ -1013,12 +1019,18 @@ const ACT = {
   equip: el => { G.equip(V.hero, +el.dataset.uid); save(); closeModal(); render(); },
   unequip: el => { G.unequip(V.hero, el.dataset.sl); save(); closeModal(); render(); },
   cell: el => {
-    const i = +el.dataset.i, F = G.s.formation;
-    if (V.sel === i) { F[i] = null; V.sel = null; }
-    else if (V.sel != null && F[V.sel] && !F[i]) { F[i] = F[V.sel]; F[V.sel] = null; V.sel = null; }
-    else if (V.sel != null && F[V.sel] && F[i]) { const t = F[i]; F[i] = F[V.sel]; F[V.sel] = t; V.sel = null; }
-    else V.sel = i;
-    save(); render();
+    if (Date.now() - DRAG.end < 400) return;
+    const i = +el.dataset.i;
+    V.sel = V.sel === i ? null : i; render();
+  },
+  'form-hero': el => {
+    if (Date.now() - DRAG.end < 400) return;
+    V.hero = el.dataset.n; V.heroFrom = 'form'; V.sel = null; V.view = 'hero'; render(); window.scrollTo(0, 0);
+  },
+  'form-off': () => {
+    const F = G.s.formation, at = F.indexOf(V.hero);
+    if (at >= 0) F[at] = null;
+    save(); toast(`${V.hero} 下阵了`); go('form');
   },
   pick: el => {
     const n = el.dataset.n, F = G.s.formation;
@@ -1088,6 +1100,51 @@ document.addEventListener('click', e => {
   const f = ACT[el.dataset.a];
   if (f) f(el);
 });
+
+// 布阵拖动换位：鼠标按下拖动即可；手机按住 0.25 秒再拖，没按住就当滚动
+const DRAG = { end: 0 };
+(function () {
+  let d = null;
+  const cellAt = (x, y) => { const e = document.elementFromPoint(x, y); return e && e.closest('.grid9 .gcell'); };
+  const start = () => {
+    const r = d.el.getBoundingClientRect();
+    d.ghost = d.el.cloneNode(true); d.ghost.classList.add('ghost');
+    Object.assign(d.ghost.style, { width: r.width + 'px', height: r.height + 'px', left: r.left + 'px', top: r.top + 'px' });
+    d.dx = d.x0 - r.left; d.dy = d.y0 - r.top;
+    document.body.appendChild(d.ghost); d.el.classList.add('dragsrc'); d.on = true;
+    if (navigator.vibrate && d.touch) try { navigator.vibrate(15); } catch (e) {}
+  };
+  const stop = () => { if (!d) return; clearTimeout(d.t); if (d.ghost) d.ghost.remove(); d.el.classList.remove('dragsrc'); document.querySelectorAll('.gcell.drop').forEach(x => x.classList.remove('drop')); d = null; };
+  document.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.grid9 .gcell.fill'); if (!el || e.button > 0) return;
+    d = { el, x0: e.clientX, y0: e.clientY, touch: e.pointerType !== 'mouse', on: false };
+    if (d.touch) d.t = setTimeout(() => { if (d && !d.moved) start(); }, 250);
+  });
+  document.addEventListener('pointermove', e => {
+    if (!d) return;
+    const far = Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 6;
+    if (!d.on) { if (far) { if (d.touch) { stop(); return; } start(); } else return; }
+    d.ghost.style.left = (e.clientX - d.dx) + 'px'; d.ghost.style.top = (e.clientY - d.dy) + 'px';
+    const c = cellAt(e.clientX, e.clientY);
+    document.querySelectorAll('.gcell.drop').forEach(x => { if (x !== c) x.classList.remove('drop'); });
+    if (c && c !== d.el) c.classList.add('drop');
+  });
+  document.addEventListener('touchmove', e => { if (d && d.on) e.preventDefault(); }, { passive: false });
+  document.addEventListener('contextmenu', e => { if (d) e.preventDefault(); });
+  const up = e => {
+    if (!d) return;
+    if (d.on) {
+      DRAG.end = Date.now();
+      const c = cellAt(e.clientX, e.clientY), i = +d.el.dataset.i;
+      stop();
+      if (c && c.dataset.i != null && +c.dataset.i !== i) {
+        const F = G.s.formation, j = +c.dataset.i, t = F[j]; F[j] = F[i]; F[i] = t; V.sel = null; save(); render();
+      }
+    } else stop();
+  };
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', () => { if (d && d.on) DRAG.end = Date.now(); stop(); });
+})();
 
 function boot() {
   const app = $('app');
