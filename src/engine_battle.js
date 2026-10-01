@@ -122,11 +122,13 @@ class Unit {
 SG.Unit = Unit;
 
 
-// ---- 羁绊（V0.3）：同一方阵上凑齐给满、四人以上凑半数给一半；每人每项合计封顶 12% ----
+// ---- 羁绊：同一方阵上凑够人数给满、四人以上的凑一部分给一半（门槛见 bondNeed）；每人每项合计封顶 12% ----
 SG.BONDS = [];
 SG.BOND_ON = true;
 const BOND_CAP = 0.12;
-function bondTier(n, c) { if (c >= n) return 1; if (n >= 4 && c >= Math.max(2, Math.ceil(n / 2))) return 0.5; return 0; }
+// V0.7：满效果最多要 5 人，一半最多要 3 人（布阵只有九格，人多的羁绊原来凑不满）
+const bondNeed = n => ({ full: Math.min(n, 5), half: n >= 4 ? Math.min(3, Math.ceil(n / 2)) : 0 });
+function bondTier(n, c) { const q = bondNeed(n); if (c >= q.full) return 1; if (q.half && c >= q.half) return 0.5; return 0; }
 function activeBonds(names) {
   const s = new Set(names), out = [];
   for (const b of SG.BONDS) { const c = b.mem.filter(m => s.has(m)).length; const t = bondTier(b.mem.length, c); if (t) out.push({ b, t, c }); }
@@ -141,7 +143,7 @@ function applyBonds(team) {
   }
   return act;
 }
-SG.bondTier = bondTier; SG.activeBonds = activeBonds; SG.applyBonds = applyBonds;
+SG.bondTier = bondTier; SG.bondNeed = bondNeed; SG.activeBonds = activeBonds; SG.applyBonds = applyBonds;
 SG.setBonds = rows => { SG.BONDS = rows.map(r => ({ name: r['名'], mem: r['成员'].split(/\s+/), k: r['属性'], v: parseFloat(r['满值']) / 100, cat: r['类别'], txt: r['说明'] || '' })); };
 
 // ---- 速度（V0.6）：比对方快多少，攻方吃暴击、守方吃闪避；只算速度差，不吃等级 ----

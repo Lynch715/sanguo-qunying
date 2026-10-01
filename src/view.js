@@ -185,19 +185,19 @@ function bondPanel(names) {
   const act = SG.activeBonds(names);
   const T = new Set(names), actSet = new Set(act.filter(a => a.t === 1).map(a => a.b));
   const near = SG.BONDS.map(b => {
-    const c = b.mem.filter(m => T.has(m)).length, miss = b.mem.filter(m => !T.has(m));
-    return { b, c, miss, own: miss.filter(m => G.s.heroes[m]) };
-  }).filter(x => x.c >= 1 && !actSet.has(x.b) && x.miss.length <= 2 && x.own.length === x.miss.length)
-    .sort((a, b) => a.miss.length - b.miss.length || b.b.v - a.b.v).slice(0, 4);
+    const c = b.mem.filter(m => T.has(m)).length, need = SG.bondNeed(b.mem.length).full - c;
+    return { b, c, need, own: b.mem.filter(m => !T.has(m) && G.s.heroes[m]) };
+  }).filter(x => x.c >= 1 && !actSet.has(x.b) && x.need >= 1 && x.need <= 2 && x.own.length >= x.need)
+    .sort((a, b) => a.need - b.need || b.b.v - a.b.v).slice(0, 4);
   if (!act.length && !near.length) return '';
-  return `<div class="card small bonds"><b class="kai">羁绊</b>${act.length ? act.map(a => `<div class="bd on"><span class="bn">${esc(a.b.name)}</span>${bondVal(a.b, a.t)}${a.t < 1 ? '<i>凑半</i>' : ''}</div>`).join('') : '<span class="muted">　还没凑成</span>'}
-    ${near.length ? `<div class="tiny muted" style="margin-top:4px">再上 ${near.map(x => `${x.miss.map(esc).join('、')} 可成【${esc(x.b.name)}】`).join('；')}</div>` : ''}</div>`;
+  return `<div class="card small bonds"><b class="kai">羁绊</b>${act.length ? act.map(a => `<div class="bd on"><span class="bn">${esc(a.b.name)}</span>${bondVal(a.b, a.t)}${a.t < 1 ? '<i>一半</i>' : ''}</div>`).join('') : '<span class="muted">　还没凑成</span>'}
+    ${near.length ? `<div class="tiny muted" style="margin-top:4px">${near.map(x => x.own.length === x.need ? `再上 ${x.own.map(esc).join('、')} 可成【${esc(x.b.name)}】` : `从 ${x.own.map(esc).join('、')} 里再上 ${x.need} 人可成【${esc(x.b.name)}】`).join('；')}</div>` : ''}</div>`;
 }
 function bondsOfHero(n) {
   const L = D.BONDOF[n] || [];
   if (!L.length) return '';
   return `<div class="sec"><h2>羁绊</h2><span class="line"></span><span class="tp">同时上阵生效</span></div>
-    ${L.map(b => `<div class="card small bcard"><div><b class="kai">${esc(b.name)}</b>　${bondVal(b)}${b.mem.length >= 4 ? `<span class="tiny muted">　凑 ${Math.max(2, Math.ceil(b.mem.length / 2))} 人给一半</span>` : ''}</div><div class="bms">${bondMem(b, G.s.formation)}</div>${b.txt ? `<div class="tiny muted">${esc(b.txt)}</div>` : ''}</div>`).join('')}`;
+    ${L.map(b => `<div class="card small bcard"><div><b class="kai">${esc(b.name)}</b>　${bondVal(b)}${(q => q.half ? `<span class="tiny muted">　上 ${q.half} 人给一半${q.full < b.mem.length ? `，${q.full} 人给满` : ''}</span>` : '')(SG.bondNeed(b.mem.length))}</div><div class="bms">${bondMem(b, G.s.formation)}</div>${b.txt ? `<div class="tiny muted">${esc(b.txt)}</div>` : ''}</div>`).join('')}`;
 }
 
 
@@ -228,7 +228,7 @@ VIEWS.ach = () => {
     h += L.map(a => {
       const k = st[a.id] || 0, hide = a.hidden && !k;
       return `<div class="ach${k === 2 ? ' got' : k === 1 ? ' pend' : ''}"><div class="grow"><div><b class="kai">${hide ? '？？？' : esc(a.name)}</b><span class="tier t-${a.tier}">${a.tier}</span>${a.title && !hide ? `<span class="tiny muted">　称号「${esc(a.title)}」</span>` : ''}</div>
-        <div class="tiny muted">${hide ? '点名的彩蛋，碰上了才知道' : esc(a.cond)}　·　${SG.rewardText(a.tier)}</div></div>
+        <div class="tiny muted">${hide ? '藏着的彩蛋，碰上了才知道' : esc(a.cond)}　·　${SG.rewardText(a.tier)}</div></div>
         ${k === 1 ? `<span class="btn sm main" data-a="ach-claim" data-id="${esc(a.id)}">领</span>` : k === 2 ? '<span class="small muted">已领</span>' : ''}</div>`;
     }).join('');
   }
@@ -254,9 +254,10 @@ VIEWS.codex = () => {
   if (cxOpen('ex')) h += `<div class="codex">${ex.map(n => {
     const k = D.EXCL[n].filter(e => haveIds.has(e.id)).length;
     return `<span class="cx ${k ? 'c-无双' : 'no'}" data-a="eq-info" data-id="${esc(D.EXCL[n][0].id)}">${esc((D0.sets[n] || {}).set || n)}<small>${k}/4</small></span>`; }).join('')}</div>`;
-  const full = SG.BONDS.filter(b => b.mem.every(m => G.s.heroes[m])).length;
-  h += cxHd('bond', '羁绊', `${full}/${SG.BONDS.length} 条人已收齐`);
-  if (cxOpen('bond')) h += SG.BONDS.map(b => `<div class="brow${b.mem.every(m => G.s.heroes[m]) ? ' ok' : ''}"><b class="kai">${esc(b.name)}</b><span class="tiny">${bondVal(b)}</span><div class="bms">${bondMem(b)}</div>${b.txt ? `<div class="tiny muted">${esc(b.txt)}</div>` : ''}</div>`).join('');
+  const canFull = b => b.mem.filter(m => G.s.heroes[m]).length >= SG.bondNeed(b.mem.length).full;
+  const full = SG.BONDS.filter(canFull).length;
+  h += cxHd('bond', '羁绊', `${full}/${SG.BONDS.length} 条能凑满`);
+  if (cxOpen('bond')) h += SG.BONDS.map(b => `<div class="brow${canFull(b) ? ' ok' : ''}"><b class="kai">${esc(b.name)}</b><span class="tiny">${bondVal(b)}</span><div class="bms">${bondMem(b)}</div>${b.txt ? `<div class="tiny muted">${esc(b.txt)}</div>` : ''}</div>`).join('');
   return h;
 };
 function chapCard(c) {
@@ -266,7 +267,7 @@ function chapCard(c) {
 }
 VIEWS.stages = () => {
   let h = '';
-  if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：敌方等级、星级整体上调，杂兵换成名将，所有来源 ×1.5。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
+  if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：敌方等级、星级整体上调，杂兵换成名将，所有收入 ×1.5。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
   const cur = G.curChapter();
   for (let c = D.CHAPTERS.length - 1; c >= 1; c--) {
     const C = D.CHAPTERS[c]; if (!C) continue;
@@ -319,7 +320,7 @@ function stageSheet(id) {
   }).join('');
   const my = G.teamPower(), fp = G.stagePower(id), r = fp ? my / fp : 9;
   const verdict = r >= 1.35 ? ['稳操胜券', 'v-ok'] : r >= 1.1 ? ['略占上风', 'v-ok'] : r >= 0.9 ? ['势均力敌', 'v-mid'] : r >= 0.7 ? ['颇为吃力', 'v-bad'] : ['恐难取胜', 'v-bad'];
-  const vsbar = `<div class="vsbar"><div class="side"><b>${num(my)}</b><i>我方现阵</i></div><div class="mid ${verdict[1]}">${verdict[0]}</div><div class="side"><b>${num(fp)}</b><i>敌方</i></div></div><div class="pbar"><em style="width:${clamp(my / (my + fp) * 100, 4, 96)}%"></em></div>`;
+  const vsbar = `<div class="vsbar"><div class="side"><b>${num(my)}</b><i>我方</i></div><div class="mid ${verdict[1]}">${verdict[0]}</div><div class="side"><b>${num(fp)}</b><i>敌方</i></div></div><div class="pbar"><em style="width:${clamp(my / (my + fp) * 100, 4, 96)}%"></em></div>`;
   const exDrop = G.exclOf(id);
   const scb = ((D0.scenes || {}).ch || {})[+s['章']];
   openModal(`${scb ? `<div class="sc-band" style="background-image:url('${scb}')"></div>` : ''}<div class="shead"><span class="ty ty-${typ}" style="font-size:.6em;padding:1px 5px;border-radius:2px;color:#fff">${typ}</span>${esc(s['关'])}<span class="x" data-a="close">关闭</span></div>
@@ -660,7 +661,7 @@ const Play = {
       }
       case 'bond': {
         const bd = SG.BONDS.find(x => x.name === ev.n);
-        return { c: 'ps', h: `${ev.side === 0 ? '我方' : '敌方'}羁绊【${esc(ev.n)}】${ev.mem.map(m => `<b class="ln-${ev.side === 0 ? 'a' : 'f'}">${esc(m)}</b>`).join('、')}：${KEYCN[ev.k]} +${Math.round(ev.v * 100)}%${ev.full ? '' : '（凑半）'}${bd && bd.txt ? `｜${esc(bd.txt)}` : ''}` };
+        return { c: 'ps', h: `${ev.side === 0 ? '我方' : '敌方'}羁绊【${esc(ev.n)}】${ev.mem.map(m => `<b class="ln-${ev.side === 0 ? 'a' : 'f'}">${esc(m)}</b>`).join('、')}：${KEYCN[ev.k]} +${Math.round(ev.v * 100)}%${ev.full ? '' : '（一半效果）'}${bd && bd.txt ? `｜${esc(bd.txt)}` : ''}` };
       }
       case 'atk': return null;
       case 'skill': {
