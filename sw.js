@@ -2,7 +2,7 @@
    代码（html/js/manifest）网络优先：联网打开永远是新版，断网才用缓存。
    图片缓存优先：地址都带 ?v=内容哈希，换了图地址就变，缓存里有就一定是对的。
    VER 由 build.py 按版本号和页面哈希写入，改版旧缓存自动清掉。 */
-const VER = 'sgqyl-0.5-061dbca5';
+const VER = 'sgqyl-0.5-e9285b8c';
 const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico', './assets/icons/icon-192.png', './assets/icons/icon-512.png'];
 
 self.addEventListener('install', e => {
