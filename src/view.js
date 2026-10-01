@@ -239,9 +239,10 @@ VIEWS.stages = () => {
   let h = '';
   if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：敌方等级、星级整体上调，杂兵换成名将，所有来源 ×1.5。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
   const cur = G.curChapter();
-  for (let c = 1; c < D.CHAPTERS.length; c++) {
+  for (let c = D.CHAPTERS.length - 1; c >= 1; c--) {
     const C = D.CHAPTERS[c]; if (!C) continue;
     const unlocked = C.stages.some(s => G.stageUnlocked(s.id));
+    if (!unlocked) continue;
     const done = C.stages.filter(s => G.isCleared(s.id)).length;
     const open = V.open[c] != null ? V.open[c] : (c === cur && unlocked);
     const info = (D0.story.chapters || {})[c] || {};
@@ -249,8 +250,9 @@ VIEWS.stages = () => {
       <div class="hd" data-a="chap" data-c="${c}"><span class="no">第${c}章</span><span class="nm">${esc(C.name)}</span><span class="pg">${done}/${C.stages.length}</span></div>`;
     if (open && unlocked) {
       h += `<div class="body">${info.intro ? `<div class="intro">${info.year ? `<span class="muted">${esc(info.year)}　</span>` : ''}${esc(info.intro)}</div>` : ''}`;
-      for (const s of C.stages) {
+      for (const s of C.stages.slice().reverse()) {
         const ul = G.stageUnlocked(s.id), ok = G.isCleared(s.id);
+        if (!ul) continue;
         const foe = G.foesOf(s.id);
         const lp = SG.limitParts(s);
         h += `<div class="stg${ul ? '' : ' lock'}" data-a="${ul ? 'stage' : 'locked'}" data-id="${s.id}">
@@ -395,8 +397,6 @@ VIEWS.hero = () => {
     ${skillHtml(n)}
     <div class="btns">
       <div class="btn sm${s.lv < maxLv && G.s.gold >= c1 ? '' : ' off'}" data-a="train" data-k="1">练 1 级<br><span class="tiny">${s.lv < maxLv ? c1 + ' 金' : '已满'}</span></div>
-      <div class="btn sm${s.lv < maxLv && G.s.gold >= c1 ? '' : ' off'}" data-a="train" data-k="10">练 10 级<br><span class="tiny">${s.lv < maxLv ? num(c10) + ' 金' : '已满'}</span></div>
-      <div class="btn sm${s.lv < maxLv && G.s.gold >= c1 ? '' : ' off'}" data-a="train-max">练满<br><span class="tiny">钱够练几级练几级</span></div>
       <div class="btn sm${G.canStar(n) ? ' main' : ' off'}" data-a="star">升星<br><span class="tiny">${s.star >= 5 ? '已满' : `碎片 ${Math.min(s.frag, need)} + 兵符 ${Math.max(0, need - s.frag)}`}</span></div>
       <div class="btn sm${rc > 0 && G.s.gold >= rc ? '' : ' off'}" data-a="recruit">征兵<br><span class="tiny">${rc > 0 ? rc + ' 金' : '满员'}</span></div>
     </div>
@@ -444,10 +444,12 @@ VIEWS.form = () => {
     <div class="sec"><h2>布阵</h2><span class="line"></span><span class="tp">${cnt} / ${lim.max} 人　总战力 ${num(G.teamPower())}</span></div>
     <div class="grid9">${grid}</div>
     ${bondPanel(names)}
-    <div class="btns">
+    <div class="btns nowrap">
       <div class="btn sm main" data-a="form-auto">一键上阵</div>
       <div class="btn sm" data-a="auto-equip">一键装备</div>
       <div class="btn sm" data-a="strip-team">一键卸装</div>
+    </div>
+    <div class="btns nowrap" style="margin-top:8px">
       <div class="btn sm" data-a="form-clear">清空</div>
       <div class="btn sm${rc > 0 && G.s.gold >= rc ? '' : ' off'}" data-a="recruit-all">征兵${rc > 0 ? ' ' + num(rc) + ' 金' : ''}</div>
     </div>
@@ -799,7 +801,7 @@ function aboutSheet() {
   openModal(`<div class="shead">关于<span class="x" data-a="close">关闭</span></div>
     <div class="small"><b>三国群英录</b>　V${VERSION}　作者 Lynch</div>
     <div class="small" style="margin-top:8px">有 bug、有想法，加微信说一声：<b>lynchrrr</b>　<span class="btn sm" data-a="copy-wx">复制</span></div>
-    <div class="small">GitHub：<b>@Lynch715</b></div>
+    <div class="small">小红书：<b>模拟游戏大全</b></div>
     <div class="sec"><h2>许可</h2><span class="line"></span></div>
     <div class="small">版权所有 © 2026 Lynch。保留所有权利。</div>
     <div class="small" style="margin-top:6px">这个游戏公开放在网上，只供浏览和在线游玩。公开不等于授权。</div>
@@ -813,7 +815,7 @@ function aboutSheet() {
     </ol>
     <div class="small">在浏览器里打开、装到桌面自己玩，不在禁止之列。</div>
     <div class="small" style="margin-top:6px">三国人物、史事与《三国演义》的情节属于公共文化，不在本声明之内。</div>
-    <div class="small" style="margin-top:6px">要授权，微信 lynchrrr 或 GitHub @Lynch715 联系。</div>`);
+    <div class="small" style="margin-top:6px">要授权，微信 lynchrrr 联系。</div>`);
 }
 // ---------------- 存档菜单 ----------------
 function bakRow() {

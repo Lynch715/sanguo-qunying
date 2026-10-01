@@ -29,6 +29,7 @@ You are painting character portraits for a Chinese Three Kingdoms strategy game.
 
 2. FRAMING LOCK
 - Canvas exactly 3:4 portrait (e.g. 1086x1448). Never square, never landscape.
+- FULL BLEED: the painting fills the whole canvas edge to edge. No white margin, no blank paper border, no frame, no mount around the picture.
 - WAIST-UP ONLY: crop at the hips. Legs, knees and feet must NOT appear in the image. A seated or kneeling figure is cropped at the lap. A rider shows only the horse's head and neck at most.
 - The figure is BIG: head plus torso fill 75–90% of the image height. Top of the head/helmet 4–8% below the top edge.
 - One figure only, three-quarter view, centered. Background people, if any, tiny and far.
@@ -45,7 +46,7 @@ COMPOSITION: single figure, waist-up, three-quarter view, centered, head in the 
 FINISH: fine paper texture, colors flat and rich. No text, no seal, no signature, no border, no frame.
 
 NEGATIVE: aged paper, yellowed silk, sepia, muted, desaturated, ink wash, loose brushwork, anime, manga, chibi, big eyes, small pointed chin, beauty-filter face, idealized symmetrical face, generic handsome man, generic pretty woman, same face, western features, photorealistic, 3D render, glossy skin, bloom, lens flare, chiaroscuro, full body, multiple figures, text, watermark, signature, frame, border
-Extra negative: beige paper, parchment, tan background, sepia tone, golden haze, oil painting, realistic rendering, 3D, full body, legs, knees, feet, shoes, small figure, distant figure, dense landscape.
+Extra negative: white border, margin, frame, mat, beige paper, parchment, tan background, sepia tone, golden haze, oil painting, realistic rendering, 3D, full body, legs, knees, feet, shoes, small figure, distant figure, dense landscape.
 
 5. OUTPUT PROTOCOL
 - I send batches of 3 characters. Make exactly 3 SEPARATE images, in the order given, never a sheet or grid.

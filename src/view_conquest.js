@@ -22,6 +22,70 @@ const POS = {
   '江陵': [49, 63], '江夏': [60, 61], '柴桑': [67, 67], '长沙': [56, 72], '武陵': [45, 72], '零陵': [49, 82], '桂阳': [60, 84], '交趾': [36, 94],
 };
 const Conq = SG.Conq = {};
+// ---------------- 地图缩放、拖动 ----------------
+// 状态存在 V.mz，重画时照旧；城点和城名反向缩放，放大后只是摊开，字不跟着变大。
+const MZ_MAX = 4;
+function mz() { return V.mz || (V.mz = { s: 1, x: 0, y: 0 }); }
+function mzStyle() { const z = mz(); return `transform:translate(${z.x}px,${z.y}px) scale(${z.s});--s:${z.s}`; }
+function mzClamp(el) {
+  const z = mz(), w = el.clientWidth, h = el.clientHeight;
+  z.s = Math.min(MZ_MAX, Math.max(1, z.s));
+  z.x = Math.min(0, Math.max(w * (1 - z.s), z.x));
+  z.y = Math.min(0, Math.max(h * (1 - z.s), z.y));
+}
+function mzApply(el) { mzClamp(el); const inn = el.querySelector('.mapin'); if (inn) inn.setAttribute('style', mzStyle()); }
+function mzZoomAt(el, ns, px, py) { // px,py：相对地图左上角的屏幕坐标，这一点放大前后不动
+  const z = mz(), cx = (px - z.x) / z.s, cy = (py - z.y) / z.s;
+  z.s = Math.min(MZ_MAX, Math.max(1, ns)); z.x = px - cx * z.s; z.y = py - cy * z.s; mzApply(el);
+}
+const PT = new Map(); let drag = null, pinch = null, swallow = false;
+function mapOf(e) { const el = e.target.closest && e.target.closest('#cqmap'); return el && !e.target.closest('.mapctl') ? el : null; }
+document.addEventListener('pointerdown', e => {
+  const el = mapOf(e); if (!el) return;
+  PT.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const z = mz();
+  if (PT.size === 1) { drag = { el, x0: e.clientX, y0: e.clientY, tx: z.x, ty: z.y, moved: false }; pinch = null; }
+  else if (PT.size === 2) {
+    const [a, b] = [...PT.values()], r = el.getBoundingClientRect();
+    pinch = { el, d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, s0: z.s, mx: (a.x + b.x) / 2 - r.left, my: (a.y + b.y) / 2 - r.top };
+    pinch.cx = (pinch.mx - z.x) / z.s; pinch.cy = (pinch.my - z.y) / z.s;
+    if (drag) drag.moved = true;
+  }
+});
+document.addEventListener('pointermove', e => {
+  if (!PT.has(e.pointerId)) return;
+  PT.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const z = mz();
+  if (pinch && PT.size >= 2) {
+    const [a, b] = [...PT.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+    z.s = Math.min(MZ_MAX, Math.max(1, pinch.s0 * d / pinch.d0));
+    z.x = pinch.mx - pinch.cx * z.s; z.y = pinch.my - pinch.cy * z.s; mzApply(pinch.el); e.preventDefault();
+  } else if (drag) {
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (!drag.moved && Math.hypot(dx, dy) > 6) drag.moved = true;
+    if (drag.moved) { z.x = drag.tx + dx; z.y = drag.ty + dy; mzApply(drag.el); e.preventDefault(); }
+  }
+}, { passive: false });
+function ptEnd(e) {
+  if (!PT.has(e.pointerId)) return;
+  PT.delete(e.pointerId);
+  if (PT.size === 0) { if (drag && drag.moved) swallow = true; drag = null; pinch = null; }
+  else if (PT.size === 1) { pinch = null; const [p] = [...PT.values()], z = mz(); if (drag) { drag.x0 = p.x; drag.y0 = p.y; drag.tx = z.x; drag.ty = z.y; } }
+}
+document.addEventListener('pointerup', ptEnd); document.addEventListener('pointercancel', ptEnd);
+// 拖完松手那一下不算点城
+document.addEventListener('click', e => { if (swallow) { swallow = false; if (e.target.closest && e.target.closest('#cqmap')) { e.stopPropagation(); e.preventDefault(); } } }, true);
+document.addEventListener('wheel', e => {
+  const el = mapOf(e); if (!el) return;
+  e.preventDefault(); const r = el.getBoundingClientRect();
+  mzZoomAt(el, mz().s * Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+ACT['cq-zoom'] = btn => {
+  const el = $('cqmap'); if (!el) return;
+  const v = btn.dataset.v, w = el.clientWidth, h = el.clientHeight;
+  if (v === '0') { V.mz = { s: 1, x: 0, y: 0 }; mzApply(el); return; }
+  mzZoomAt(el, mz().s * (v === 'in' ? 1.5 : 1 / 1.5), w / 2, h / 2);
+};
 function saveCq() { SG.save(); }
 Conq.pool = () => {
   const g = G(), w = W();
@@ -63,7 +127,7 @@ VIEWS.map = () => {
   for (const a in w.ADJ) for (const b of w.ADJ[a]) {
     const k = a < b ? a + b : b + a; if (seen.has(k)) continue; seen.add(k);
     const [x1, y1] = POS[a], [x2, y2] = POS[b];
-    lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#b9ae9b" stroke-width=".35" />`;
+    lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#b9ae9b" stroke-width="1.4" vector-effect="non-scaling-stroke" />`;
   }
   const cities = Object.keys(st.city).map(n => {
     const c = st.city[n], [x, y] = POS[n], sz = c.tier === '都' ? 15 : c.tier === '大' ? 11 : 8;
@@ -76,7 +140,7 @@ VIEWS.map = () => {
   const news = (g.s.news || []).slice(-6).map(esc).join('<br>');
   return `<div class="row" style="margin-bottom:6px"><b class="kai" style="font-size:1.1em;color:${FCOL[me]}">${me}</b><span class="small muted">都城 ${st.capital[me]}　第 ${st.turn} 回合${st.turn <= SG.CQ.truce ? `（休战到第 ${SG.CQ.truce} 回合）` : ''}</span><span class="grow"></span>
       <span class="btn sm main" data-a="cq-end">${g.s.acted ? '结束回合' : '过回合'}</span></div>
-    <div class="map"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${lines}</svg>${cities}</div>
+    <div class="map" id="cqmap"><div class="mapin" style="${mzStyle()}"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${lines}</svg>${cities}</div><div class="mapctl"><span data-a="cq-zoom" data-v="in">＋</span><span data-a="cq-zoom" data-v="out">－</span><span class="rs" data-a="cq-zoom" data-v="0">复位</span></div></div>
     <div class="legend">${legend}</div>
     <div class="small muted">${g.s.acted ? '这回合已出过兵。' : '红字的城可以打，点城看守军。'}练级、升星、招降、招贤不占回合。</div>
     ${news ? `<div class="card cq-log" style="margin-top:8px">${news}</div>` : ''}

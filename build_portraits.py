@@ -3,7 +3,7 @@
 """立绘出两档 webp：
   assets/portraits/web/s_<文件>.webp  高 96（布阵格子）
   assets/portraits/web/l_<文件>.webp  高 480（详情）
-3:4 整张缩放，不裁。文件名按 data/portrait_names.tsv。
+3:4 整张缩放；GPT 图四周自带的白纸边先切掉（trim_mat），原图不动。文件名按 data/portrait_names.tsv。
 
 原图从哪找（按顺序）：
   1. portrait_names.tsv 的「原图」列（相对 assets/portraits/）
@@ -32,6 +32,46 @@ def index_sources():
             if ext.lower() in EXTS:
                 idx.setdefault(stem.lower().replace('_', ''), os.path.join(d, f))
     return idx
+
+
+def trim_mat(im):
+    """去掉 GPT 图四周自带的白纸边，再修成 3:4（竖图从底部切，宽图左右居中切）。
+    只有四条边都有一圈接近纯白、几乎没起伏的边时才动，正常的白底工笔不会被误切。"""
+    from PIL import ImageStat
+    g = im.convert('L')
+    sw = 300
+    sm = g.resize((sw, round(sw * im.height / im.width)))
+    W, H = sm.size
+    px = sm.load()
+    def blank_row(y):
+        v = [px[x, y] for x in range(W)]
+        m = sum(v) / W
+        return m > 236 and (sum((a - m) ** 2 for a in v) / W) ** .5 < 7
+    def blank_col(x):
+        v = [px[x, y] for y in range(H)]
+        m = sum(v) / H
+        return m > 236 and (sum((a - m) ** 2 for a in v) / H) ** .5 < 7
+    t = 0
+    while t < H // 4 and blank_row(t): t += 1
+    b = 0
+    while b < H // 4 and blank_row(H - 1 - b): b += 1
+    l = 0
+    while l < W // 4 and blank_col(l): l += 1
+    r = 0
+    while r < W // 4 and blank_col(W - 1 - r): r += 1
+    lim_h, lim_w = H * 0.03, W * 0.03
+    if not (t >= lim_h and b >= lim_h and l >= lim_w and r >= lim_w):
+        return im
+    k = im.width / W
+    pad = 2  # 再往里收两个小格，免得留一道白线
+    box = [round((l + pad) * k), round((t + pad) * k), round((W - r - pad) * k), round((H - b - pad) * k)]
+    im = im.crop(box)
+    w, h = im.size
+    if w / h > 0.75:
+        nw = round(h * 0.75); x = (w - nw) // 2; im = im.crop((x, 0, x + nw, h))
+    elif w / h < 0.75:
+        im = im.crop((0, 0, w, round(w * 4 / 3)))
+    return im
 
 
 def main():
@@ -73,7 +113,7 @@ def main():
             if not force and os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(src):
                 skip += 1
                 continue
-            im = Image.open(src).convert('RGB')
+            im = trim_mat(Image.open(src).convert('RGB'))
             w = round(im.width * h / im.height)
             im.resize((w, h), Image.LANCZOS).save(out, 'WEBP', quality=82 if tag == 'l' else 78, method=6)
             done += 1

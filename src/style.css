@@ -225,7 +225,7 @@ h1,h2,h3,.kai{font-family:var(--f-title);font-weight:400}
 /* 霸业地图 */
 .map{position:relative;width:100%;aspect-ratio:1/1.02;background:#f1ead9;border:1px solid var(--paper-3);border-radius:8px;overflow:hidden}
 .map svg{position:absolute;inset:0;width:100%;height:100%}
-.city{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer;z-index:2}
+.city{position:absolute;transform:scale(calc(1 / var(--s,1))) translate(-50%,-50%);transform-origin:0 0;text-align:center;cursor:pointer;z-index:2}
 .city .dot{margin:0 auto;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 .city .cn{font-family:var(--f-title);font-size:.7em;white-space:nowrap;text-shadow:0 0 2px #f6f1e6,0 0 2px #f6f1e6;line-height:1.1;margin-top:1px}
 .city.sel .dot{box-shadow:0 0 0 3px var(--jin)}
@@ -333,3 +333,11 @@ h1,h2,h3,.kai{font-family:var(--f-title);font-weight:400}
 .copy{margin-top:18px;font-size:.72em;line-height:1.7;color:var(--ink-3);text-align:center;cursor:pointer}
 ol.lic{margin:4px 0 6px;padding-left:1.6em}
 ol.lic li{margin:2px 0}
+
+.btns.nowrap .btn{white-space:nowrap}
+/* 霸业地图缩放 */
+.map{touch-action:none;user-select:none;-webkit-user-select:none}
+.mapin{position:absolute;inset:0;transform-origin:0 0}
+.mapctl{position:absolute;right:6px;bottom:6px;z-index:5;display:flex;flex-direction:column;gap:4px}
+.mapctl span{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,253,248,.92);border:1px solid var(--ink-3);border-radius:4px;font-size:16px;line-height:1;cursor:pointer}
+.mapctl span.rs{font-size:11px}
