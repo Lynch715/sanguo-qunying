@@ -10,7 +10,7 @@ function check(g, tag) { for (const a of g.achCheck()) got.add(a.id); for (const
 { const g = G0(); for (const n of D.HLIST) g.addHero(n); check(g); ['初聚', '三十六员', '百将', '二百将', '群英毕至', '无双五人', '无双十五', '无双尽收'].forEach(x => ok(got.has(x), x)); }
 { const g = G0(); for (let i = 0; i < 50; i++) g.draw(10); check(g); ok(got.has('广纳英雄') && got.has('求贤若渴'), '十连'); }
 // 铁匠
-{ const g = G0(); for (const s of D.STAGES) if (+s['章'] <= 25) g.s.cleared[s.id] = 1; for (let i = 0; i < 60 && !g.s.ev['打出专属']; i++) g.smith(10); check(g); ok(got.has('铁匠铺常客'), '铁匠常客'); ok(got.has('打铁出神兵'), '打铁出神兵'); }
+{ const g = G0(); for (const s of D.STAGES) if (+s['章'] <= 25) g.s.cleared[s.id] = 1; g.addHero('关羽'); for (let i = 0; i < 200 && (i < 10 || !g.s.ev['打出专属']); i++) g.smith(10); /* V0.6：铁匠铺专属只出已拥有的无双，先给一个 */ check(g); ok(got.has('铁匠铺常客'), '铁匠常客'); ok(got.has('打铁出神兵'), '打铁出神兵'); }
 // 神兵
 { const g = G0(); for (const n in D.EXCL) for (const e of D.EXCL[n]) g.addItem(e.id); check(g); ['神兵在手', '四件套', '神兵谱', '神兵满堂', '兵器谱'].forEach(x => ok(got.has(x), x)); }
 // 养成

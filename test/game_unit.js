@@ -50,7 +50,7 @@ for (const nm of ['神亭酣斗', '过五关斩六将', '据水断桥', '草船�
 }
 // ---- V0.6 ----
 {
-  // 战败：上阵的人退回出战前，没上阵的不变
+  // 战败：带残兵，谁都不回
   const g = SG.Game.fresh(11); const ns = Object.keys(g.s.heroes); const a = ns[0];
   g.addHero('诸葛亮'); g.hero('诸葛亮').hp = 300;
   g.hero(a).lv = 3; g.hero(a).hp = 1700;
@@ -58,8 +58,8 @@ for (const nm of ['神亭酣斗', '过五关斩六将', '据水断桥', '草船�
   for (const s of D.STAGES) { if (s._i < hard._i && (s['类型'] === '主线' || s['类型'] === '章末')) g.s.cleared[s.id] = 1; }
   const F = [a, null, null, null, null, null, null, null, null];
   const r = g.fight(hard.id, F, { seed: 1, quick: true });
-  ok(!r.res.win && g.hero(a).hp === 1700 && g.hero('诸葛亮').hp === 300, 'V0.6 输了退回出战前兵力，没上阵的不回');
-  ok(g.recruitCost(a) > 0, 'V0.6 输了征兵价不变（还缺兵）');
+  ok(!r.res.win && g.hero(a).hp === Math.max(0, r.res.A[0].hp) && g.hero(a).hp < 1700 && g.hero('诸葛亮').hp === 300, `V0.6 输了带残兵（1700 → ${Math.round(g.hero(a).hp)}），谁都不回`);
+  ok(g.recruitCost(a) > 0, 'V0.6 输了只能征兵补');
 }
 {
   // 出处关：复刷不掉给信物，满 20 换一件；齐了不再掉
@@ -74,7 +74,7 @@ for (const nm of ['神亭酣斗', '过五关斩六将', '据水断桥', '草船�
   while (g.exclMiss('刘备').length) g.fight(st.id, F, { seed: 99, quick: true });
   const r = g.fight(st.id, F, { seed: 100, quick: true });
   ok(!r.rew.excl.length && !g.exclOf(st.id).src[0].miss, 'V0.6 齐了以后不掉、不给信物');
-  SG.CFG.src_excl = .05;
+  SG.CFG.src_excl = .03;
   // 铁匠铺：专属只出已拥有、没凑齐的
   g.s.gold = 1e9; for (const s of D.STAGES) if (+s['章'] <= 26) g.s.cleared[s.id] = 1;
   const own = new Set(Object.keys(g.s.heroes)); let bad = 0, n5 = 0;

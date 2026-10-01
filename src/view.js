@@ -269,7 +269,7 @@ VIEWS.stages = () => {
 // 关卡页的专属掉落：出处关（V0.6）＋本关出场无双（老掉法）
 const exLink = n => `<span data-a="eq-info" data-id="${esc(D.EXCL[n][0].id)}" style="text-decoration:underline">${esc((D0.sets[n] || {}).set || n)}</span>`;
 function exDropHtml(x, replay) {
-  const src = x.src.map(o => `<div>出处：${exLink(o.n)}（${esc(o.n)}）${o.miss ? `，缺 ${o.miss} 件。${replay ? `复刷 ${Math.round(SG.CFG.src_excl * 100)}% 掉一件，不掉给信物，信物 ${o.tok}/${SG.CFG.src_token}` : '首通必得一件'}` : '，四件齐了'}</div>`).join('');
+  const src = x.src.map(o => `<div>出处：${exLink(o.n)}（${esc(o.n)}）${o.miss ? `，缺 ${o.miss} 件${replay && o.tok ? `　信物 ${o.tok}/${SG.CFG.src_token}` : ''}` : '，四件齐了'}</div>`).join('');
   const old = x.L.length ? `<div>可能掉落（${Math.round(x.pe * 100)}%）：${x.L.map(o => `${exLink(o.n)}（${esc(o.n)}，${o.miss ? `缺 ${o.miss} 件` : '齐了'}）`).join('、')}</div>` : '';
   return `<div class="small" style="color:var(--zhu);margin-top:4px">${src}${old}</div>`;
 }
@@ -400,7 +400,6 @@ VIEWS.hero = () => {
       <div class="small muted">碎片 ${s.frag}${s.star < 5 ? `　升星要 ${need}` : ''}</div>
     </div></div>
     <div class="stat4">${['atk', 'def', 'int', 'agi'].map(k => `<div><span>${KEYCN[k]}</span><span><b>${Math.round(p[k])}</b><small>+${h[grow[k]]}/级</small></span></div>`).join('')}</div>
-    <div class="tiny muted" style="margin:-2px 0 6px">速度：出手先后；比对手快，暴击率高；比对手慢，容易被闪。</div>
     ${h['生平'] ? `<div class="bio"><div class="bh kai">生平</div>${h['生平'].split('｜').map(t => `<p>${esc(t)}</p>`).join('')}</div>` : ''}
     ${skillHtml(n)}
     <div class="btns">
@@ -771,7 +770,7 @@ function battleGrids(b) {
   return { top, bot };
 }
 function exclNote(rew) {
-  const L = (rew.excl || []).map(e => e.how === 'token' ? `${esc(e.n)}的信物 +1（${e.tok}/${SG.CFG.src_token}）` : e.how === 'swap' ? `${esc(e.n)}的信物满 ${SG.CFG.src_token}，换得 ${esc(D.EQID[e.id]['名'])}` : '').filter(Boolean);
+  const L = (rew.excl || []).map(e => e.how === 'token' ? `${esc(e.n)}的信物 +1（${e.tok}/${SG.CFG.src_token}）` : e.how === 'swap' ? `${esc(e.n)}的信物凑齐，换得 ${esc(D.EQID[e.id]['名'])}` : '').filter(Boolean);
   return L.length ? `<div class="small" style="margin-top:4px;color:var(--zhu)">${L.join('<br>')}</div>` : '';
 }
 function quietAch(L) { V.achToast = V.achToast || {}; (L || []).forEach(a => V.achToast[a.id] = 1); }
@@ -790,7 +789,7 @@ function battleHtml() {
     tail = out.note != null ? `<div class="card"><div class="result ${win ? 'win' : 'lose'}">${out.winTxt || (win ? '胜' : '败')}</div><div class="small" style="text-align:center">${out.note}</div>
       <div class="btns"><div class="btn main" data-a="${out.backAct || 'go'}" data-v="${out.back || 'map'}">${out.backTxt || '返回'}</div></div></div>` : `<div class="card"><div class="result ${win ? 'win' : 'lose'}">${win ? '胜' : '败'}</div>
       ${win ? `<div class="small" style="text-align:center">${rew.first ? '首通　' : ''}金 +${num(rew.gold)}${rew.gold2 ? `　黄金 +${rew.gold2}` : ''}</div>${items ? `<div class="small" style="margin-top:6px">${items}</div>` : ''}${exclNote(rew)}`
-        : `<div class="small muted" style="text-align:center">退回整顿，上阵的人兵力回到出战前。换个阵容再来。</div>`}
+        : `<div class="small muted" style="text-align:center">败退。折损的兵马要去征兵补齐。</div>`}
       ${achRows(out.ach)}
       ${win && st && +st['章'] === 26 && st['类型'] === '章末' && !G.s.seenEpi && (D0.crawl || {}).epilogue ? '<div class="btns"><div class="btn main" data-a="crawl-epi">尾　声</div></div>' : ''}
       <div class="btns"><div class="btn" data-a="go" data-v="${out.back || 'stages'}">回征战</div>${st ? `<div class="btn" data-a="to-form" data-id="${st.id}">重新布阵</div><div class="btn main" data-a="refight">再战一场</div>` : ''}</div></div>`;

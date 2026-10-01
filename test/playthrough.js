@@ -7,7 +7,7 @@ const D = SG.D, H = D.H, CFG = SG.CFG, TIER_ORDER = SG.TIER_ORDER;
 const STAGES = D.STAGES, SKROW = D.SKROW, EQ = D.EQ, EQROWS = D.EQROWS, SET4 = D.SET4, SK = D.SK;
 const STRATS = ['power', 'guard', 'antimag', 'burst', 'mag'];
 const STRAT_CN = { power: '战力最高', guard: '厚统率带指挥', antimag: '抗谋略带解控回兵', burst: '速攻瞬发追击', mag: '谋略输出', duel: '单挑最强' };
-const PCFG = { lv_cap: lv => lv, max_try: 15, side_try: 3, per_strat: 3, replay_cap: 9, frag_star: [0, 5, 10, 15, 20] };
+const PCFG = { lv_cap: lv => lv, max_try: 15, side_try: 3, per_strat: 3, replay_cap: +(process.env.RCAP || 9), frag_star: [0, 5, 10, 15, 20] };
 const POOL = D.POOL;
 const CANBING = !!process.env.CANBING, VAR = process.env.VAR || '';
 const mean = L => L.reduce((a, b) => a + b, 0) / L.length;
@@ -173,9 +173,9 @@ function fight(p, stage, ease, strat) {
   const A = names.map((n, i) => { const u = mk_player_unit(p, n, i < gears.length ? gears[i] : null); if (CANBING) u.hp = u.maxhp * Math.max(0.001, p.heroes[n].hp != null ? p.heroes[n].hp : 1); return u; });
   const r = SG.fightStage(stage, A, ease, {});
   if (CANBING) {
-    if (VAR !== 'D' && !r.win) { LAST = [A, r.foes || []]; return [r.win, r.rounds]; }   // V0.6 游戏规则：输了退回出战前，谁都不回（VAR=D 是 V0.5 的输了回满）
+    if (VAR !== 'D' && VAR !== 'L' && VAR !== 'N' && !r.win) { LAST = [A, r.foes || []]; return [r.win, r.rounds]; }   // V0.6 游戏规则：输了退回出战前，谁都不回（VAR=D 是 V0.5 的输了回满）
     A.forEach(u => { p.heroes[u.name].hp = Math.max(0, u.hp / u.maxhp); });
-    const regen = (VAR === 'B' && r.win) ? 1 : ((VAR === 'D' || VAR === 'DC' || VAR === 'DN') && !r.win) ? 1 : VAR === 'A' ? 0.5 : 0.2;
+    const regen = (VAR === 'N') ? 0 : (VAR === 'L' && !r.win) ? 0 : (VAR === 'B' && r.win) ? 1 : ((VAR === 'D' || VAR === 'DC' || VAR === 'DN') && !r.win) ? 1 : VAR === 'A' ? 0.5 : 0.2;
     for (const n in p.heroes) { const h = p.heroes[n]; h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + regen); }
   }
   LAST = [A, r.foes || []];
@@ -195,6 +195,10 @@ function run(seed) {
     for (const strat of order) {
       for (let k = 0; k < per; k++) {
         while (Object.keys(p.heroes).length < 4 && p.gold >= CFG.draw) { p.gold -= CFG.draw; p.sp('招贤', CFG.draw); p.add(p.rng.choice(POOL[p.draw_one()])); }
+        if (CANBING && process.env.FARM && idx > 0) {   // 复刷不限：队里有人缺兵三成以上，就回头刷上一关（按赢算：拿复刷金、全员回两成），最多 40 次
+          const tm = p.team(stage, strat); let k = 0;
+          while (k < 40 && tm.some(n => (p.heroes[n].hp != null ? p.heroes[n].hp : 1) < 0.7)) { p.gold += CFG.gold_replay(+STAGES[idx - 1]['等级']); if (VAR !== 'N') for (const n in p.heroes) { const h = p.heroes[n]; h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + 0.2); } k++; if (VAR === 'N') { conscript(p, tm); } p.farm = (p.farm || 0) + 1; }
+        }
         if (CANBING) conscript(p, p.team(stage, strat));
         p.train(p.team(stage, strat), Math.min(50, cap + Math.min(6, Math.floor(tries / 5))));
         while (Object.keys(p.heroes).length < 9 && p.gold >= CFG.draw + 200) { p.gold -= CFG.draw; p.sp('招贤', CFG.draw); p.add(p.rng.choice(POOL[p.draw_one()])); }
@@ -213,7 +217,7 @@ function run(seed) {
           const tm = p.team(stage, strat); tlv = tm.length ? mean(tm.map(n => p.heroes[n].lv)) : 0;
           win_strat = strat; break;
         }
-        if (idx > 0 && replays < PCFG.replay_cap) { p.gold += CFG.gold_replay(+STAGES[idx - 1 - Math.floor(replays / 3)]['等级']); replays++; if (CANBING) for (const n in p.heroes) { const h = p.heroes[n]; h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + 0.2); } }
+        if (idx > 0 && replays < PCFG.replay_cap) { p.gold += CFG.gold_replay(+STAGES[Math.max(0, idx - 1 - Math.floor(replays / 3))]['等级']); replays++; if (CANBING) for (const n in p.heroes) { const h = p.heroes[n]; h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + 0.2); } }
         if (tries % 5 === 0 && p.gold >= CFG.draw) { p.gold -= CFG.draw; p.sp('招贤', CFG.draw); p.add(p.rng.choice(POOL[p.draw_one()])); }
       }
       if (won) break;

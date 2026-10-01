@@ -45,8 +45,8 @@ const CFG = {
   drop_tier: ch => Math.min(4, ch <= 25 ? Math.floor((ch - 1) / 5) : 4),
   replay_drop: .20, boss_excl: .03, hidden_excl: .10, side_excl: .03,
   tx_reroll: 10,
-  src_excl: .05, src_token: 20,
-  gold_hero: { '袁术': .10, '糜竺': .15, '刘巴': .20, '吕范': .10, '毛玠': .08, '杨松': .06, '黄皓': .08 },   // V0.6：技能文案里写的「上阵的仗赢了金币 +x%」，原来没生效   // V0.6 专属出处关：复刷 5%，不掉给信物，20 枚换一件
+  src_excl: .03, src_token: 20,   // V0.6 专属出处关：复刷 3%，不掉给信物，20 枚换一件
+  gold_hero: { '袁术': .10, '糜竺': .15, '刘巴': .20, '吕范': .10, '毛玠': .08, '杨松': .06, '黄皓': .08 },   // V0.6：技能文案里写的「上阵的仗赢了金币 +x%」，原来没生效   // V0.6 专属出处关：复刷 3%，不掉给信物，20 枚换一件
 };
 SG.CFG = CFG;
 
@@ -466,14 +466,11 @@ class Game {
     const replay = this.isCleared(id);
     if (replay && this.replayLeft(id) <= 0) return { err: '这关今天刷满三次了' };
     const A = picks.map(([n]) => this.unitOf(n));
-    const hp0 = picks.map(([n]) => this.hero(n).hp);   // V0.6：输了退回出战前
     SG.setBattleSeed(opt.seed != null ? opt.seed : Math.floor(Math.random() * 2 ** 31));
     const res = fightStage(st, A, parseFloat(st['系数']) || 1, { log: !opt.quick, cycle: this.s.cycle, cells: picks.map(p => p[1]), tx: this.txList(), huatuo: !!this.s.heroes['华佗'] });
-    // 赢了：带残兵，全员回两成。输了（V0.6）：上阵的人退回出战前的兵力，谁都不回——输了等于没打，不能靠故意输回兵
-    if (res.win) {
-      picks.forEach(([n], i) => { this.hero(n).hp = Math.max(0, A[i].hp); });
-      for (const n in this.s.heroes) { const h = this.s.heroes[n]; h.hp = Math.min(h.lv * 1000, h.hp + h.lv * 1000 * CFG.regen_after_stage); }
-    } else picks.forEach(([n], i) => { this.hero(n).hp = hp0[i]; });
+    // 残兵带回。赢了全员回两成；输了（V0.6）谁都不回，补兵只能征兵
+    picks.forEach(([n], i) => { this.hero(n).hp = Math.max(0, A[i].hp); });
+    if (res.win) for (const n in this.s.heroes) { const h = this.s.heroes[n]; h.hp = Math.min(h.lv * 1000, h.hp + h.lv * 1000 * CFG.regen_after_stage); }
     const rew = { gold: 0, gold2: 0, items: [], first: false, replay, excl: [] };
     if (res.win) {
       const lv = stageFoes(st, this.s.cycle).lv, ch = +st['章'], typ = st['类型'];
