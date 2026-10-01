@@ -1,8 +1,8 @@
 // 第 2 步验收：用 JS 引擎把 sim/playthrough.py 的一周目傻子策略跑一遍（逐行照搬 Player 和 run）
-const { SG, DATA } = require('./load_node');
+const { SG, DATA } = require('../../test/load_node');
 if (process.env.NOBOND) SG.BOND_ON = false;
 SG.init(DATA);
-SG.FX7 = false;   // 跟 python 口径一致
+SG.FX7 = false; if (process.env.AGI) SG.AGI = { k: .2, crit: .08, dodge: .05 };
 const D = SG.D, H = D.H, CFG = SG.CFG, TIER_ORDER = SG.TIER_ORDER;
 const STAGES = D.STAGES, SKROW = D.SKROW, EQ = D.EQ, EQROWS = D.EQROWS, SET4 = D.SET4, SK = D.SK;
 const STRATS = ['power', 'guard', 'antimag', 'burst', 'mag'];
@@ -173,7 +173,7 @@ function fight(p, stage, ease, strat) {
   const A = names.map((n, i) => { const u = mk_player_unit(p, n, i < gears.length ? gears[i] : null); if (CANBING) u.hp = u.maxhp * Math.max(0.001, p.heroes[n].hp != null ? p.heroes[n].hp : 1); return u; });
   const r = SG.fightStage(stage, A, ease, {});
   if (CANBING) {
-    if (VAR !== 'D' && !r.win) { LAST = [A, r.foes || []]; return [r.win, r.rounds]; }   // V0.6 游戏规则：输了退回出战前，谁都不回（VAR=D 是 V0.5 的输了回满）
+    if (VAR === 'E' && !r.win) { LAST = [A, r.foes || []]; return [r.win, r.rounds]; }   // 输了：回到出战前的兵力，谁都不回
     A.forEach(u => { p.heroes[u.name].hp = Math.max(0, u.hp / u.maxhp); });
     const regen = (VAR === 'B' && r.win) ? 1 : ((VAR === 'D' || VAR === 'DC' || VAR === 'DN') && !r.win) ? 1 : VAR === 'A' ? 0.5 : 0.2;
     for (const n in p.heroes) { const h = p.heroes[n]; h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + regen); }
@@ -252,6 +252,6 @@ console.log('\n各章主线平均重试：', Object.entries(chap).sort((a, b) =>
 console.log('卡关分布：', JSON.stringify(stucks));
 const walls = Object.entries(chap).filter(([c, v]) => mean(v) >= 3).map(([c]) => +c);
 console.log('平均重试 ≥3 的章：', walls.join('、'));
-require('fs').writeFileSync(__dirname + '/playthrough_js.json', JSON.stringify({ allres, stucks, cleared, sec: (Date.now() - t0) / 1000 }));
+require('fs').writeFileSync(__dirname + '/pt_'+VAR+'.json', JSON.stringify({ allres, stucks, cleared, sec: (Date.now() - t0) / 1000 }));
 console.log('用时', (Date.now() - t0) / 1000, 's');
 }

@@ -266,6 +266,14 @@ VIEWS.stages = () => {
   }
   return h;
 };
+// 关卡页的专属掉落：出处关（V0.6）＋本关出场无双（老掉法）
+const exLink = n => `<span data-a="eq-info" data-id="${esc(D.EXCL[n][0].id)}" style="text-decoration:underline">${esc((D0.sets[n] || {}).set || n)}</span>`;
+function exDropHtml(x, replay) {
+  const src = x.src.map(o => `<div>出处：${exLink(o.n)}（${esc(o.n)}）${o.miss ? `，缺 ${o.miss} 件。${replay ? `复刷 ${Math.round(SG.CFG.src_excl * 100)}% 掉一件，不掉给信物，信物 ${o.tok}/${SG.CFG.src_token}` : '首通必得一件'}` : '，四件齐了'}</div>`).join('');
+  const old = x.L.length ? `<div>可能掉落（${Math.round(x.pe * 100)}%）：${x.L.map(o => `${exLink(o.n)}（${esc(o.n)}，${o.miss ? `缺 ${o.miss} 件` : '齐了'}）`).join('、')}</div>` : '';
+  return `<div class="small" style="color:var(--zhu);margin-top:4px">${src}${old}</div>`;
+}
+const exSrcHtml = n => { const L = D.EXSRC_OF[n]; return L ? `出处：${L.map(id => `<span data-a="src-stage" data-id="${id}" style="text-decoration:underline">${esc(D.STAGE[id]['关'])}</span>`).join('、')}${(G.s.token || {})[n] ? `　信物 ${G.s.token[n]}/${SG.CFG.src_token}` : ''}` : ''; };
 function stageSheet(id) {
   const s = D.STAGE[id];
   const foe = G.foesOf(id);
@@ -293,10 +301,10 @@ function stageSheet(id) {
     <div class="sec"><h2>敌方</h2><span class="line"></span><span class="tp">${foe.lv} 级　${'★'.repeat(foe.star)}　${foe.names.length} 人</span></div>
     <div class="foes">${foes}</div>
     ${(() => { const fb = SG.activeBonds(foe.names); return fb.length ? `<div class="small" style="margin-top:6px">敌方羁绊：${fb.map(a => `【${esc(a.b.name)}】${bondVal(a.b, a.t)}`).join('　')}</div>` : ''; })()}
-    <div class="small muted" style="margin-top:6px">${replay ? `复刷：${num(Math.round(gold * G.goldMul()))} 金，${G.txHas('贪狼') ? '四成掉一件低两档' : '两成掉一件低一档'}的装备。今天还能刷 ${left} 次。` : `首通：${num(Math.round(gold * G.goldMul()))} 金${(() => { const g2 = (SG.CFG.gold2_clear[typ] || 0) * (G.s.cycle >= 2 ? 2 : 1) + (G.txHas('天狼') ? 1 : 0); return g2 ? `、黄金 ${g2}` : ''; })()}，必掉${G.txHas('贪狼') ? '两件' : '一件'}装备。`}</div>
-    ${exDrop ? `<div class="small" style="color:var(--zhu);margin-top:4px">可能掉落专属（${Math.round(exDrop.pe * 100)}%）：${exDrop.L.map(x => `<span data-a="eq-info" data-id="${esc(D.EXCL[x.n][0].id)}" style="text-decoration:underline">${esc((D0.sets[x.n] || {}).set || x.n)}</span>（${esc(x.n)}，${x.miss ? `缺 ${x.miss} 件` : '齐了'}）`).join('、')}</div>` : ''}
+    <div class="small muted" style="margin-top:6px">${replay ? `复刷：${num(Math.round(gold * G.goldMul()))} 金，${G.txHas('贪狼') ? '四成掉一件低两档' : '两成掉一件低一档'}的装备。` : `首通：${num(Math.round(gold * G.goldMul()))} 金${(() => { const g2 = (SG.CFG.gold2_clear[typ] || 0) * (G.s.cycle >= 2 ? 2 : 1) + (G.txHas('天狼') ? 1 : 0); return g2 ? `、黄金 ${g2}` : ''; })()}，必掉${G.txHas('贪狼') ? '两件' : '一件'}装备。`}</div>
+    ${exDrop ? exDropHtml(exDrop, replay) : ''}
     <div class="btns"><div class="btn main${replay && left <= 0 ? ' off' : ''}" data-a="to-form" data-id="${id}">${lim.max < 9 ? `布阵（限 ${lim.max} 人）` : '布阵出战'}</div>${replay ? `<div class="btn${left > 0 ? '' : ' off'}" data-a="sweep" data-id="${id}">速战</div>` : ''}</div>
-    ${replay ? '<div class="tiny muted" style="margin-top:4px">速战：用现在的阵容直接出结果，不看演出，照样占今天的次数。</div>' : ''}`);
+    ${replay ? '<div class="tiny muted" style="margin-top:4px">速战：用现在的阵容直接出结果，不看演出。</div>' : ''}`);
 }
 
 // ---------------- 将领列表 ----------------
@@ -377,7 +385,7 @@ VIEWS.hero = () => {
       const have = G.s.bag.some(it => it.id === e.id), on = G.gearIds(n).includes(e.id);
       return `<span class="small" style="margin-right:8px;${on ? 'color:var(--zhu)' : have ? '' : 'color:var(--ink-4)'}">${esc(e['名'])}${on ? '·穿' : have ? '·有' : ''}</span>`;
     }).join('');
-    exHtml = `<div class="card small"><b class="kai">专属·${esc(st ? st.set : '')}</b><div>${own}</div>${st ? `<div class="muted tiny" style="margin-top:4px">武器：${esc(st.w)}<br>宝物：${esc(st.t)}<br>两件：主属性 +6%　四件：${esc(st.four)}</div>` : ''}</div>`;
+    exHtml = `<div class="card small"><b class="kai">专属·${esc(st ? st.set : '')}</b><div>${own}</div>${G.kind === 'conquest' ? '' : `<div class="tiny" style="margin-top:2px">${exSrcHtml(n)}</div>`}${st ? `<div class="muted tiny" style="margin-top:4px">武器：${esc(st.w)}<br>宝物：${esc(st.t)}<br>两件：主属性 +6%　四件：${esc(st.four)}</div>` : ''}</div>`;
   }
   const L = sortedHeroes(), i = L.indexOf(n);
   return `<div class="row" style="margin-bottom:8px"><span class="btn sm" data-a="go" data-v="heroes">← 将领</span><span class="grow"></span>
@@ -392,6 +400,7 @@ VIEWS.hero = () => {
       <div class="small muted">碎片 ${s.frag}${s.star < 5 ? `　升星要 ${need}` : ''}</div>
     </div></div>
     <div class="stat4">${['atk', 'def', 'int', 'agi'].map(k => `<div><span>${KEYCN[k]}</span><span><b>${Math.round(p[k])}</b><small>+${h[grow[k]]}/级</small></span></div>`).join('')}</div>
+    <div class="tiny muted" style="margin:-2px 0 6px">速度：出手先后；比对手快，暴击率高；比对手慢，容易被闪。</div>
     ${h['生平'] ? `<div class="bio"><div class="bh kai">生平</div>${h['生平'].split('｜').map(t => `<p>${esc(t)}</p>`).join('')}</div>` : ''}
     ${skillHtml(n)}
     <div class="btns">
@@ -530,7 +539,7 @@ function eqInfo(id, uid) {
   if (st) {
     const w = row['槽'] === '武器' ? st.w : row['槽'] === '宝物' ? st.t : '';
     fx = `<div class="card small"><b class="kai">专属·${esc(st.set)}</b>　${esc(own)}本人穿：固定值 ×1.5${w ? `<br>${esc(row['槽'])}特效：${esc(w)}` : ''}<br>两件：主属性 +6%<br>四件：${esc(st.four)}
-      <div class="tiny muted" style="margin-top:4px">这套四件：${D.EXCL[own].map(e => `<span style="${G.s.bag.some(it => it.id === e.id) ? '' : 'color:var(--ink-4)'}">${esc(e['名'])}</span>`).join('、')}</div></div>`;
+      <div class="tiny muted" style="margin-top:4px">这套四件：${D.EXCL[own].map(e => `<span style="${G.s.bag.some(it => it.id === e.id) ? '' : 'color:var(--ink-4)'}">${esc(e['名'])}</span>`).join('、')}</div>${G.kind === 'conquest' ? '' : `<div class="tiny" style="margin-top:2px">${exSrcHtml(own)}</div>`}</div>`;
   }
   openModal(`<div class="shead">${eqSeal(row)} ${esc(row['名'])}<span class="x" data-a="close">关闭</span></div>
     <div class="small">${esc(row['档'])}　${esc(row['槽'])}　${eqStatTxt(row, own || '')}</div>
@@ -761,6 +770,10 @@ function battleGrids(b) {
   }
   return { top, bot };
 }
+function exclNote(rew) {
+  const L = (rew.excl || []).map(e => e.how === 'token' ? `${esc(e.n)}的信物 +1（${e.tok}/${SG.CFG.src_token}）` : e.how === 'swap' ? `${esc(e.n)}的信物满 ${SG.CFG.src_token}，换得 ${esc(D.EQID[e.id]['名'])}` : '').filter(Boolean);
+  return L.length ? `<div class="small" style="margin-top:4px;color:var(--zhu)">${L.join('<br>')}</div>` : '';
+}
 function quietAch(L) { V.achToast = V.achToast || {}; (L || []).forEach(a => V.achToast[a.id] = 1); }
 function achRows(L) {
   if (!L || !L.length || !G.s.ach) return '';
@@ -776,8 +789,8 @@ function battleHtml() {
     const items = (rew.items || []).map(it => { const row = D.EQID[it.id]; return `<div>${eqSeal(row)} ${esc(row['名'])}　<span class="muted small">${eqStatTxt(row, '')}</span></div>`; }).join('');
     tail = out.note != null ? `<div class="card"><div class="result ${win ? 'win' : 'lose'}">${out.winTxt || (win ? '胜' : '败')}</div><div class="small" style="text-align:center">${out.note}</div>
       <div class="btns"><div class="btn main" data-a="${out.backAct || 'go'}" data-v="${out.back || 'map'}">${out.backTxt || '返回'}</div></div></div>` : `<div class="card"><div class="result ${win ? 'win' : 'lose'}">${win ? '胜' : '败'}</div>
-      ${win ? `<div class="small" style="text-align:center">${rew.first ? '首通　' : ''}金 +${num(rew.gold)}${rew.gold2 ? `　黄金 +${rew.gold2}` : ''}</div>${items ? `<div class="small" style="margin-top:6px">${items}</div>` : ''}`
-        : `<div class="small muted" style="text-align:center">退回来整顿，全员兵力补满。换个阵容再来。</div>`}
+      ${win ? `<div class="small" style="text-align:center">${rew.first ? '首通　' : ''}金 +${num(rew.gold)}${rew.gold2 ? `　黄金 +${rew.gold2}` : ''}</div>${items ? `<div class="small" style="margin-top:6px">${items}</div>` : ''}${exclNote(rew)}`
+        : `<div class="small muted" style="text-align:center">退回整顿，上阵的人兵力回到出战前。换个阵容再来。</div>`}
       ${achRows(out.ach)}
       ${win && st && +st['章'] === 26 && st['类型'] === '章末' && !G.s.seenEpi && (D0.crawl || {}).epilogue ? '<div class="btns"><div class="btn main" data-a="crawl-epi">尾　声</div></div>' : ''}
       <div class="btns"><div class="btn" data-a="go" data-v="${out.back || 'stages'}">回征战</div>${st ? `<div class="btn" data-a="to-form" data-id="${st.id}">重新布阵</div><div class="btn main" data-a="refight">再战一场</div>` : ''}</div></div>`;
@@ -1020,6 +1033,7 @@ const ACT = {
     ask('批量出售', `卖掉 ${L.length} 件，得 ${num(v)} 金。`, '卖', () => { let got = 0, k = 0; for (const u of L) { const x = G.sell(u); if (x) { got += x; k++; } } V.sellSel = new Set(); V.sellMode = false; glog(`批量卖了 ${k} 件，得 ${got} 金`); save(); render(); toast(`卖了 ${k} 件，得 ${num(got)} 金`); });
   },
   'eq-info': el => eqInfo(el.dataset.id, el.dataset.uid),
+  'src-stage': el => { const id = el.dataset.id; if (G.kind === 'conquest') return; if (!G.stageUnlocked(id)) { toast(`还没打到第${D.STAGE[id]['章']}章「${D.STAGE[id]['关']}」`); return; } closeModal(); stageSheet(id); },
   sell: el => { const v = G.sell(+el.dataset.uid); if (v) { toast(`卖了 ${v} 金`); save(); render(); } },
   'sell-junk': () => {
     const L = G.s.bag.filter(it => { const r = D.EQID[it.id]; return !r['归属'] && !G.equippedBy(it.uid) && (r['档'] === '凡品' || r['档'] === '良品'); });

@@ -142,6 +142,15 @@ function applyBonds(team) {
 SG.bondTier = bondTier; SG.activeBonds = activeBonds; SG.applyBonds = applyBonds;
 SG.setBonds = rows => { SG.BONDS = rows.map(r => ({ name: r['名'], mem: r['成员'].split(/\s+/), k: r['属性'], v: parseFloat(r['满值']) / 100, cat: r['类别'], txt: r['说明'] || '' })); };
 
+// ---- 速度（V0.6）：比对方快多少，攻方吃暴击、守方吃闪避；只算速度差，不吃等级 ----
+SG.AGI = { k: .2, crit: .08, dodge: .05 };   // 对照 Python 时设 k=0
+function agiEdge(me, other, kind) {
+  const A = SG.AGI; if (!A.k || !other) return 0;
+  const a = me.stat('agi'), o = Math.max(1, other.stat('agi'));
+  return Math.max(0, Math.min(A[kind], (a - o) / o * A.k));
+}
+SG.agiEdge = agiEdge;
+
 // ---------------- Battle ----------------
 const SUBJECT = new Set(['on_hit_taken', 'after_hit', 'after_attack', 'on_death', 'on_kill', 'round_end_unit', 'on_dodge', 'mod_in', 'mod_out', 'choose_target', 'on_lethal']);
 function _count_hits(u, src, dmg, kind, tag) { const b = u.battle; const k = '挨|' + b.round; u.flags[k] = (u.flags[k] || 0) + 1; }
@@ -194,7 +203,7 @@ class Battle {
   damage(src, tgt, mult, kind = 'phys', ignore = 0.0, must_hit = false, tag = 'skill') {
     if (!tgt.alive()) return 0;
     if (SG.FX7 && tag === 'pursue' && src.flags['pursue_ig']) ignore = Math.max(ignore, src.flags['pursue_ig']);   // 赵云青釭剑
-    if (!must_hit && R.random() < tgt.flag('dodge')) { this.say(`${tgt.name} 闪避了 ${src.name}`, { t: 'dodge', u: tgt, s: src }); this.hook_all('on_dodge', tgt, src); return 0; }
+    if (!must_hit && R.random() < tgt.flag('dodge') + agiEdge(tgt, src, 'dodge')) { this.say(`${tgt.name} 闪避了 ${src.name}`, { t: 'dodge', u: tgt, s: src }); this.hook_all('on_dodge', tgt, src); return 0; }
     const A = kind === 'phys' ? src.stat('atk') : src.stat('int');
     let D = kind === 'phys' ? tgt.stat('def') : 0.5 * tgt.stat('int') + 0.5 * tgt.stat('def');
     D *= (1 - ignore);
@@ -212,7 +221,7 @@ class Battle {
     if (tag === 'pursue') dmg *= (1 + src.flag('pursueout'));
     if (tgt.prep) dmg *= (1 - (tgt.flags['prep_guard'] || 0));
     let crit = false;
-    if (R.random() < src.flag('crit')) { dmg *= (src.flags['critmul'] != null ? src.flags['critmul'] : 1.5); crit = true; }
+    if (R.random() < src.flag('crit') + agiEdge(src, tgt, 'crit')) { dmg *= (src.flags['critmul'] != null ? src.flags['critmul'] : 1.5); crit = true; }
     return this.apply(src, tgt, dmg, kind, tag, false, crit);
   }
   apply(src, tgt, dmg, kind = 'phys', tag = 'skill', trueDmg = false, crit = false) {
@@ -220,7 +229,9 @@ class Battle {
     const sub = this.hook_all('substitute', tgt, src, kind, tag);
     if (sub && sub !== tgt && sub.alive()) {
       this.say(`${sub.name} 替 ${tgt.name} 挡下`, { t: 'sub', u: sub, v: tgt });
-      return this.apply(src, sub, dmg * (sub.flags['sub_mul'] != null ? sub.flags['sub_mul'] : 1.0), kind, tag, trueDmg, crit);
+      sub.flags['_subbing'] = true;   // V0.6：替挡这一击里，subbed 条件成立（典韦短戟囊）
+      try { return this.apply(src, sub, dmg * (sub.flags['sub_mul'] != null ? sub.flags['sub_mul'] : 1.0), kind, tag, trueDmg, crit); }
+      finally { sub.flags['_subbing'] = false; }
     }
     const hp0 = tgt.hp, tot = dmg; let ab = 0;
     if (!trueDmg && tgt.shield > 0) {
@@ -495,6 +506,7 @@ function _cond_ok(b, u, conds, ctx) {
     else if (c === 'notwasfirst') { if (b.order && b.order.length && b.order[0] === u) return false; }
     else if (c === 'faclt3') { if (b.allies(u).filter(a => a.faction === u.faction).length >= 3) return false; }
     else if (c === 'every3r1') { if (b.round % 3 !== 1) return false; }
+    else if (c === 'subbed') { if (!u.flags['_subbing']) return false; u.flags['_subbing'] = false; }   // 用一次就清，防反击来回弹
     else if (c === 'shielded') { if (u.shield <= 0) return false; }
     else if (c === 'fasterthan') { if (!(ctx.tgt && u.stat('agi') > ctx.tgt.stat('agi'))) return false; }
     else if (c === 'notfasterthan') { if (ctx.tgt && u.stat('agi') > ctx.tgt.stat('agi')) return false; }
@@ -728,8 +740,9 @@ reg('太史慈神射', (b, u, ctx) => {
   b.damage(u, t, 1.3, 'phys', 0, true, 'pursue');
   if (t.prep) { t.prep = null; b.say(`${t.name} 准备被打断`, { t: 'interrupt', u, v: t }); }
 });
-reg('吕布围攻', (b, u) => { if ((u.flags['围|' + b.round] || 0) === 3) u.addbuff('atk', .15, 2, '三英'); });
-reg('吕布围攻2', (b, u) => { if ((u.flags['围|' + b.round] || 0) === 2) u.addbuff('atk', .15, 2, '三英'); });
+// V0.6 修：原来读的「围|回合」没人写，从不生效；改读每回合挨打计数
+reg('吕布围攻', (b, u) => { if ((u.flags['挨|' + b.round] || 0) === 3) u.addbuff('atk', .15, 2, '三英'); });
+reg('吕布围攻2', (b, u) => { if ((u.flags['挨|' + b.round] || 0) === 2) u.addbuff('atk', .15, 2, '三英'); });
 reg('董卓吸血', (b, u, ctx) => { if (['attack', 'skill', 'pursue'].includes(ctx.tag)) u.hp = Math.min(u.maxhp, u.hp + (ctx.dmg || 0) * ((SG.FX7 && typeof u.flags['吸血'] === 'number') ? u.flags['吸血'] : .25)); });
 reg('华佗刮骨', (b, u, ctx) => { const d = ctx.dead; if (!u.once.has('刮骨')) { u.once.add('刮骨'); d.hp = d.maxhp * .3; b.say(`华佗救回 ${d.name}`, { t: 'revive', u: d }); } });
 reg('华佗刮骨2', (b, u, ctx) => { const d = ctx.dead, n = u.flags['刮骨n'] || 0; if (n < 2) { u.flags['刮骨n'] = n + 1; d.hp = d.maxhp * .3; b.say(`华佗救回 ${d.name}`, { t: 'revive', u: d }); } });

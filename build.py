@@ -9,7 +9,7 @@
 """
 import csv, hashlib, json, os, re, sys
 
-VERSION = '0.5'
+VERSION = '0.6'
 ROOT = os.path.dirname(os.path.abspath(__file__))
 NOASSETS = '--noassets' in sys.argv
 SRC = ['engine_battle.js', 'engine_game.js', 'engine_ach.js', 'engine_conquest.js', 'saveio.js', 'view.js', 'view_conquest.js', 'pwa.js']
@@ -91,6 +91,18 @@ def bonds():
     return rows
 
 
+def exsrc():
+    """专属出处关（V0.6）：每个无双两个关，人名、关 id 都要对得上。"""
+    rows = tsv('excl_src.tsv')
+    names = {r['名'] for r in tsv('heroes_all.tsv') if r['品阶'] == '无双'}
+    ids = {r['id'] for r in tsv('stages.tsv')}
+    bad = [r['名'] for r in rows if r['名'] not in names or r['关一'] not in ids or r['关二'] not in ids]
+    miss = names - {r['名'] for r in rows}
+    if bad or miss:
+        sys.exit('专属出处关对不上：' + '、'.join(bad + sorted(miss)))
+    return rows
+
+
 def heroes():
     """将领表并上生平（data/bios.tsv）；缺人、多人、空生平都报错。"""
     rows = tsv('heroes_all.tsv')
@@ -160,7 +172,7 @@ def main():
     data = {
         'version': VERSION,
         'heroes': heroes(), 'skills': tsv('skills_dsl.tsv'), 'equip': tsv('equip.tsv'),
-        'set4': tsv('set4.tsv'), 'stages': tsv('stages.tsv'), 'cities': tsv('cities.tsv'), 'bonds': bonds(),
+        'set4': tsv('set4.tsv'), 'stages': tsv('stages.tsv'), 'cities': tsv('cities.tsv'), 'bonds': bonds(), 'exsrc': exsrc(),
         'story': story(), 'crawl': crawl(), 'sets': set_text(), 'portraits': portraits(), 'scenes': scenes(),
     }
     js_data = 'window.SGDATA=' + json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/') + ';'

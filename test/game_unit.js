@@ -27,12 +27,13 @@ for (const x of ['关羽', '张飞', '赵云', '马超', '黄忠', '诸葛亮'])
 h2.s.formation = ['关羽', '张飞', '赵云', '马超', '黄忠', '诸葛亮', null, null, null];
 const st1 = D.STAGES[0];
 const f1 = h2.fight(st1.id, h2.s.formation, { seed: 1 });
-ok(f1.res.win && f1.rew.first && f1.rew.gold === SG.CFG.gold_clear(1) && f1.rew.items.length === 1, '首通给钱给装备');
+ok(f1.res.win && f1.rew.first && f1.rew.gold === SG.CFG.gold_clear(1) && f1.rew.items.filter(it => !D.EQID[it.id]['归属']).length === 1, '首通给钱给装备');
+ok(f1.rew.excl.length === 1 && f1.rew.excl[0].n === '刘备' && f1.rew.excl[0].how === 'first', 'V0.6 出处关首通必掉一件专属（桃园三结义 → 刘备）');
 ok(h2.stageUnlocked(D.STAGES[1].id) && !h2.stageUnlocked(D.STAGES[2].id), '解锁下一关');
 const hid = D.STAGES.find(s => s['章'] === '1' && s['类型'] === '隐藏');
 ok(!h2.stageUnlocked(hid.id), '隐藏关本章没全通不开');
 for (let k = 0; k < 3; k++) h2.fight(st1.id, h2.s.formation, { seed: k });
-ok(h2.fight(st1.id, h2.s.formation).err, '复刷一天三次');
+ok(!h2.fight(st1.id, h2.s.formation, { seed: 9 }).err, 'V0.6 复刷不限次数');
 for (const s of D.STAGES) if (s['章'] === '1' && s['类型'] !== '隐藏') h2.s.cleared[s.id] = 1;
 ok(h2.stageUnlocked(hid.id), '本章全通隐藏关开');
 // 限制关
@@ -46,6 +47,41 @@ for (const nm of ['神亭酣斗', '过五关斩六将', '据水断桥', '草船�
   const team = h2.s.formation.slice(); const F = [null, null, null, null, null, null, null, null, null]; team.filter(Boolean).slice(0, lim.max).forEach((q, i) => F[i] = q);
   const f = h2.fight(s.id, F, { seed: 3 });
   ok((lim.max < 9 ? !!tooMany.err : true) && !f.err, `${nm}：限 ${lim.max} 人${lim.survive ? '，撑 ' + lim.survive + ' 回合' : ''}${lim.wheel ? '，车轮 ' + f.res.battles.length + ' 阵' : ''} → ${f.res.win ? '胜' : '败'}，${f.res.rounds} 回合`);
+}
+// ---- V0.6 ----
+{
+  // 战败：上阵的人退回出战前，没上阵的不变
+  const g = SG.Game.fresh(11); const ns = Object.keys(g.s.heroes); const a = ns[0];
+  g.addHero('诸葛亮'); g.hero('诸葛亮').hp = 300;
+  g.hero(a).lv = 3; g.hero(a).hp = 1700;
+  const hard = D.STAGES.find(s => s['类型'] === '章末' && +s['章'] === 12);
+  for (const s of D.STAGES) { if (s._i < hard._i && (s['类型'] === '主线' || s['类型'] === '章末')) g.s.cleared[s.id] = 1; }
+  const F = [a, null, null, null, null, null, null, null, null];
+  const r = g.fight(hard.id, F, { seed: 1, quick: true });
+  ok(!r.res.win && g.hero(a).hp === 1700 && g.hero('诸葛亮').hp === 300, 'V0.6 输了退回出战前兵力，没上阵的不回');
+  ok(g.recruitCost(a) > 0, 'V0.6 输了征兵价不变（还缺兵）');
+}
+{
+  // 出处关：复刷不掉给信物，满 20 换一件；齐了不再掉
+  const g = SG.Game.fresh(12);
+  for (const x of ['关羽', '张飞', '赵云', '马超', '黄忠', '诸葛亮', '吕布', '曹操', '孙策']) { g.addHero(x); Object.assign(g.hero(x), { lv: 50, hp: 50000, star: 5 }); }
+  const F = ['关羽', '张飞', '赵云', '马超', '黄忠', '诸葛亮', '吕布', '曹操', '孙策'];
+  const st = D.STAGES[0]; g.s.cleared[st.id] = 1; SG.CFG.src_excl = 0;
+  let swapped = 0, toks = 0;
+  for (let k = 0; k < 40; k++) { const r = g.fight(st.id, F, { seed: k, quick: true }); for (const e of r.rew.excl) { if (e.how === 'swap') swapped++; if (e.how === 'token') toks++; } }
+  ok(swapped === 2 && toks === 38, `V0.6 复刷不掉给信物，满 20 换一件（40 次：换 ${swapped}、信物 ${toks}）`);
+  SG.CFG.src_excl = 1;
+  while (g.exclMiss('刘备').length) g.fight(st.id, F, { seed: 99, quick: true });
+  const r = g.fight(st.id, F, { seed: 100, quick: true });
+  ok(!r.rew.excl.length && !g.exclOf(st.id).src[0].miss, 'V0.6 齐了以后不掉、不给信物');
+  SG.CFG.src_excl = .05;
+  // 铁匠铺：专属只出已拥有、没凑齐的
+  g.s.gold = 1e9; for (const s of D.STAGES) if (+s['章'] <= 26) g.s.cleared[s.id] = 1;
+  const own = new Set(Object.keys(g.s.heroes)); let bad = 0, n5 = 0;
+  for (let k = 0; k < 300; k++) for (const o of g.smith(10)) if (o.ti === 5) { n5++; if (!own.has(o.row['归属'])) bad++; }
+  ok(n5 > 0 && !bad, `V0.6 铁匠铺专属只出已拥有的无双（出了 ${n5} 件）`);
+  // 每个无双两个出处关
+  ok(Object.keys(D.EXSRC_OF).length === 36 && Object.values(D.EXSRC_OF).every(L => L.length === 2 && L.every(id => D.STAGE[id])), 'V0.6 36 个无双各两个出处关');
 }
 // 存档往返
 const s2 = SG.Game.load(h2.toJSON()); ok(s2 && Object.keys(s2.s.heroes).length === Object.keys(h2.s.heroes).length, '存档往返');

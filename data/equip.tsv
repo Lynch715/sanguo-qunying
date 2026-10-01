@@ -160,7 +160,7 @@ id	名	槽	档	类别	固定	百分比	维	归属	DSL
 武器_158	八十斤双铁戟	武器	神品	专属	30	6	atk	典韦	setup:flag(double_attack); setup:buff(self,atkmult,-40)
 盔甲_159	宛城铁铠	盔甲	神品	专属	27	6	def	典韦	
 马匹_160	乌骝	马匹	神品	专属	21	6	agi	典韦	
-宝物_161	短戟囊	宝物	神品	专属	21	6	atk	典韦	hit:counter(100,0.5)@srctag:sub
+宝物_161	短戟囊	宝物	神品	专属	21	6	atk	典韦	hit:counter(100,0.5)@subbed
 武器_162	裂石大刀	武器	神品	专属	30	6	atk	许褚	atk:st(tgt,缴械,1,15)
 盔甲_163	虎痴皮甲	盔甲	神品	专属	27	6	def	许褚	
 马匹_164	渭水黄骠	马匹	神品	专属	21	6	agi	许褚	

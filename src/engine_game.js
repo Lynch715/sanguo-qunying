@@ -37,7 +37,7 @@ const CFG = {
   sell: { '凡品': 20, '良品': 60, '精品': 150, '珍品': 400, '神品': 1000 },
   recruit_per_k: 4, recruit_per_k_conquest: 2,
   regen_after_stage: .20,
-  replay_per_day: 3,
+  replay_per_day: Infinity,   // V0.6：复刷不限次数
   gold2_clear: { '章末': 1, '隐藏': 3, '支线': 1 },
   gold2_draw: 2,
   start_gold: 1000,
@@ -45,6 +45,8 @@ const CFG = {
   drop_tier: ch => Math.min(4, ch <= 25 ? Math.floor((ch - 1) / 5) : 4),
   replay_drop: .20, boss_excl: .03, hidden_excl: .10, side_excl: .03,
   tx_reroll: 10,
+  src_excl: .05, src_token: 20,
+  gold_hero: { '袁术': .10, '糜竺': .15, '刘巴': .20, '吕范': .10, '毛玠': .08, '杨松': .06, '黄皓': .08 },   // V0.6：技能文案里写的「上阵的仗赢了金币 +x%」，原来没生效   // V0.6 专属出处关：复刷 5%，不掉给信物，20 枚换一件
 };
 SG.CFG = CFG;
 
@@ -65,6 +67,9 @@ function init(DATA) {
   D.CITIES = DATA.cities || [];
   D.POOL = {}; TIER_ORDER.forEach(t => D.POOL[t] = D.HLIST.filter(n => D.H[n]['品阶'] === t));
   D.EXCL = {}; DATA.equip.forEach(e => { if (e['归属']) (D.EXCL[e['归属']] = D.EXCL[e['归属']] || []).push(e); });
+  // V0.6 专属出处关：关 id → [无双]，无双 → [关 id, 关 id]
+  D.EXSRC = {}; D.EXSRC_OF = {};
+  (DATA.exsrc || []).forEach(r => { const L = [r['关一'], r['关二']]; D.EXSRC_OF[r['名']] = L; L.forEach(id => (D.EXSRC[id] = D.EXSRC[id] || []).push(r['名'])); });
   D.CHAPTERS = [];
   for (const s of DATA.stages) {
     const c = +s['章'];
@@ -265,7 +270,7 @@ const SAVE_KEY = 'sgqyl_campaign_v1';
 function today() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
 
 class Game {
-  constructor(s) { this.s = s; this.rng = SG.makeRng((s.seed ^ (s.draws * 7919) ^ (s.smithDraws * 104729) ^ Date.now()) >>> 0); }
+  constructor(s) { this.s = s; if (!s.token) s.token = {}; this.rng = SG.makeRng((s.seed ^ (s.draws * 7919) ^ (s.smithDraws * 104729) ^ Date.now()) >>> 0); }
   static fresh(seed) {
     if (seed == null) seed = Math.floor(Math.random() * 2 ** 31);
     const s = { v: 1, seed, cycle: 1, gold: CFG.start_gold, gold2: 0, heroes: {}, draws: 0, sinceHu: 0, smithDraws: 0, sinceZhen: 0, tokens: 0, tokensBought: 0, bag: [], gear: {}, uid: 1, cleared: {}, replay: { day: today(), n: {} }, formation: [null, null, null, null, null, null, null, null, null], seen: {}, log: [] };
@@ -302,14 +307,19 @@ class Game {
     return { ok: true, id: x };
   }
   // 这一关能掉谁的专属、各缺几件
+  // 这一关能掉谁的专属、各缺几件。src：出处关（V0.6）；L：本关出场的无双（老掉法）
   exclOf(id) {
     const st = this.D.STAGE[id], typ = st['类型'];
     const pe = typ === '章末' ? CFG.boss_excl : typ === '隐藏' ? CFG.hidden_excl : typ === '支线' ? CFG.side_excl : 0;
-    if (!pe) return null;
-    const have = new Set(this.s.bag.map(it => it.id));
-    const L = this.foesOf(id).names.filter(n => this.D.EXCL[n]).map(n => ({ n, miss: this.D.EXCL[n].filter(e => !have.has(e.id)).length }));
-    return L.length ? { pe, L, done: L.every(x => !x.miss) } : null;
+    const src = (this.D.EXSRC[id] || []).map(n => ({ n, miss: this.exclMiss(n).length, tok: this.s.token[n] || 0 }));
+    const srcN = new Set(src.map(x => x.n));
+    const L = pe ? [...new Set(this.foesOf(id).names)].filter(n => this.D.EXCL[n] && !srcN.has(n)).map(n => ({ n, miss: this.exclMiss(n).length })) : [];
+    if (!src.length && !L.length) return null;
+    return { pe, L, src, done: src.concat(L).every(x => !x.miss) };
   }
+  exclMiss(n) { const have = new Set(this.s.bag.map(it => it.id)); return (this.D.EXCL[n] || []).filter(e => !have.has(e.id)); }
+  // 掉一件 n 缺的专属；齐了返回 null
+  dropExcl(n) { const m = this.exclMiss(n); return m.length ? this.addItem(this.rng.choice(m).id) : null; }
   bondsOff() { return this.txHas('破军'); }
   foesOf(id) { return stageFoes(this.D.STAGE[id], this.s.cycle, this.txList()); }
   hero(n) { return this.s.heroes[n]; }
@@ -398,8 +408,12 @@ class Game {
       if (ti === 5 && cap < 4) ti = cap;
       ti = ti === 5 ? 5 : Math.min(ti, cap);
       let row;
-      if (ti === 5) { const L = this.D.EQROWS.filter(e => e['归属']); row = this.rng.choice(L); }
-      else { const L = this.D.EQROWS.filter(e => e['档'] === EQ_TIERS[ti] && !e['归属']); row = this.rng.choice(L); }
+      // V0.6：专属只出已拥有、还没凑齐的无双的，从缺的里出；一个都没有就按神品出
+      if (ti === 5) {
+        const ws = Object.keys(this.D.EXCL).filter(n => this.s.heroes[n] && this.exclMiss(n).length);
+        if (ws.length) row = this.rng.choice(this.exclMiss(this.rng.choice(ws))); else ti = 4;
+      }
+      if (ti !== 5) { const L = this.D.EQROWS.filter(e => e['档'] === EQ_TIERS[ti] && !e['归属']); row = this.rng.choice(L); }
       out.push({ ti, it: this.addItem(row.id), row });
     }
     return out;
@@ -452,13 +466,15 @@ class Game {
     const replay = this.isCleared(id);
     if (replay && this.replayLeft(id) <= 0) return { err: '这关今天刷满三次了' };
     const A = picks.map(([n]) => this.unitOf(n));
+    const hp0 = picks.map(([n]) => this.hero(n).hp);   // V0.6：输了退回出战前
     SG.setBattleSeed(opt.seed != null ? opt.seed : Math.floor(Math.random() * 2 ** 31));
     const res = fightStage(st, A, parseFloat(st['系数']) || 1, { log: !opt.quick, cycle: this.s.cycle, cells: picks.map(p => p[1]), tx: this.txList(), huatuo: !!this.s.heroes['华佗'] });
-    // 残兵带回
-    picks.forEach(([n], i) => { this.hero(n).hp = Math.max(0, A[i].hp); });
-    // V0.2：赢了带残兵、全员回两成；输了退回去整顿，全员兵力回满（残兵版模拟见施工报告 V0.2）
-    for (const n in this.s.heroes) { const h = this.s.heroes[n]; h.hp = res.win ? Math.min(h.lv * 1000, h.hp + h.lv * 1000 * CFG.regen_after_stage) : h.lv * 1000; }
-    const rew = { gold: 0, gold2: 0, items: [], first: false, replay };
+    // 赢了：带残兵，全员回两成。输了（V0.6）：上阵的人退回出战前的兵力，谁都不回——输了等于没打，不能靠故意输回兵
+    if (res.win) {
+      picks.forEach(([n], i) => { this.hero(n).hp = Math.max(0, A[i].hp); });
+      for (const n in this.s.heroes) { const h = this.s.heroes[n]; h.hp = Math.min(h.lv * 1000, h.hp + h.lv * 1000 * CFG.regen_after_stage); }
+    } else picks.forEach(([n], i) => { this.hero(n).hp = hp0[i]; });
+    const rew = { gold: 0, gold2: 0, items: [], first: false, replay, excl: [] };
     if (res.win) {
       const lv = stageFoes(st, this.s.cycle).lv, ch = +st['章'], typ = st['类型'];
       if (!replay) {
@@ -481,12 +497,27 @@ class Game {
         }
         this.s.cleared[id]++;
       }
-      // 专属掉落：章末 3%、隐藏 10%、支线 3%（V0.4），掉本关出场无双的件
+      // V0.6 出处关：首通必掉一件；复刷 5%，不掉给一枚信物，满 20 枚换一件；齐了不掉也不给信物
+      for (const n of (D.EXSRC[id] || [])) {
+        if (!this.exclMiss(n).length) continue;
+        let it = null, how = '';
+        if (!replay) { it = this.dropExcl(n); how = 'first'; }
+        else if (this.rng.random() < CFG.src_excl) { it = this.dropExcl(n); how = 'luck'; }
+        else {
+          const t = (this.s.token[n] || 0) + 1;
+          if (t >= CFG.src_token) { this.s.token[n] = 0; it = this.dropExcl(n); how = 'swap'; }
+          else { this.s.token[n] = t; rew.excl.push({ n, how: 'token', tok: t }); }
+        }
+        if (it) { rew.items.push(it); rew.excl.push({ n, how, id: it.id }); }
+      }
+      // 专属掉落：章末 3%、隐藏 10%、支线 3%（V0.4），掉本关出场无双缺的件（V0.6 起只掉缺的）
       const pe = typ === '章末' ? CFG.boss_excl : typ === '隐藏' ? CFG.hidden_excl : typ === '支线' ? CFG.side_excl : 0;
       if (pe && this.rng.random() < pe) {
-        const ws = stageFoes(st, this.s.cycle, this.txList()).names.filter(n => D.EXCL[n]);
-        if (ws.length) rew.items.push(this.addItem(this.rng.choice(D.EXCL[this.rng.choice(ws)]).id));
+        const ws = [...new Set(stageFoes(st, this.s.cycle, this.txList()).names)].filter(n => D.EXCL[n] && this.exclMiss(n).length);
+        if (ws.length) { const n = this.rng.choice(ws), it = this.dropExcl(n); rew.items.push(it); rew.excl.push({ n, how: 'boss', id: it.id }); }
       }
+      const gb = picks.reduce((a, [n]) => a + (CFG.gold_hero[n] || 0), 0);
+      if (gb) { rew.goldHero = Math.round(rew.gold * gb); rew.gold += rew.goldHero; }
       this.s.gold += rew.gold; this.s.gold2 += rew.gold2;
     } else if (replay) {
       this.s.replay.n[id] = (this.s.replay.n[id] || 0) + 1;
@@ -500,7 +531,6 @@ class Game {
     for (const p of txParts({ tx: this.txList() })) if (p.A) U.forEach(p.A);
     return Math.round(U.reduce((a, u) => a + unitPower(u), 0));
   }
-  bondsOff() { return false; }
   stagePower(id) {
     const st = this.D.STAGE[id], f = stageFoes(st, this.s.cycle, this.txList()), ease = parseFloat(st['系数']) || 1;
     const B = f.names.map(n => mkEnemy(n, f.lv, f.star, ease)); apply_limit(st, [], B); SG.applyBonds(B);
