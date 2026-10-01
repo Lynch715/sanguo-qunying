@@ -25,8 +25,8 @@ function toast(msg) {
   const d = document.createElement('div'); d.textContent = msg; t.appendChild(d);
   setTimeout(() => d.remove(), 1800);
 }
-function openModal(html) { const m = $('modal'); m.innerHTML = `<div class="sheet">${html}</div>`; m.classList.add('on'); m.scrollTop = 0; }
-function closeModal() { const m = $('modal'); m.classList.remove('on'); m.innerHTML = ''; }
+function openModal(html, cls = '') { const m = $('modal'); m.innerHTML = `<div class="sheet">${html}</div>`; m.className = 'on' + (cls ? ' ' + cls : ''); m.scrollTop = 0; }
+function closeModal() { const m = $('modal'); m.className = ''; m.innerHTML = ''; }
 let askFn = null;
 function ask(title, body, yes, fn) {
   askFn = fn;
@@ -240,7 +240,7 @@ const cxOpen = k => !!(V.cx || {})[k];
 const cxHd = (k, title, tp) => `<div class="sec cxh" data-a="cx-tog" data-k="${k}" style="cursor:pointer"><h2>${title}</h2><span class="line"></span><span class="tp">${tp}${tp ? '　' : ''}${cxOpen(k) ? '收起 ▴' : '展开 ▾'}</span></div>`;
 VIEWS.codex = () => {
   const own = D.HLIST.filter(n => G.s.heroes[n]).length;
-  let h = `<div class="stele"><div class="st-t">群 英 录</div><div class="st-s">名字先写好，人后来到</div><div class="st-n"><b>${own}</b> / ${D.HLIST.length}</div></div>`;
+  let h = `<div class="stele"><div class="st-t">群 英 录</div><div class="st-n"><b>${own}</b> / ${D.HLIST.length}</div></div>`;
   for (const f of ['魏', '蜀', '吴', '汉', '无']) {
     const L = D.HLIST.filter(n => D.H[n]['阵营'] === f).sort((a, b) => SG.TIER_ORDER.indexOf(D.H[b]['品阶']) - SG.TIER_ORDER.indexOf(D.H[a]['品阶']));
     const o = L.filter(n => G.s.heroes[n]).length;
@@ -526,9 +526,18 @@ VIEWS.tavern = () => {
     <div class="btns"><div class="btn${s.gold >= tp ? '' : ' off'}" data-a="token" data-k="1">买 1 枚<br><span class="tiny">${tp} 金</span></div>
       <div class="btn${s.gold >= G.tokenCost(10) ? '' : ' off'}" data-a="token" data-k="10">买 10 枚<br><span class="tiny">${num(G.tokenCost(10))} 金</span></div></div>`;
 };
-function pullSheet(res, title) {
-  const cards = res.map(r => { const h = D.H[r.name]; return `<div class="pull">${por(r.name)}<div class="nm c-${h['品阶']}">${esc(r.name)}</div><div class="${r.dup ? 'muted' : 'new'}">${r.dup ? '碎片 +3' : '新'}</div></div>`; }).join('');
-  openModal(`<div class="shead">${title}<span class="x" data-a="close">关闭</span></div><div class="pulls">${cards}</div>`);
+// 招贤、铁匠的出货：居中大卡，一张一张翻出来
+function pullSheet(res, title, again) {
+  const one = res.length === 1;
+  const cards = res.map((r, i) => { const h = D.H[r.name]; return `<div class="pc b-${h['品阶']}" style="animation-delay:${i * 70}ms">${por(r.name, one ? 'l' : 'm')}<div class="pn c-${h['品阶']}">${esc(r.name)}</div><div class="pm">${TSEAL(h['品阶'])}${facTag(h['阵营'])}<span>${esc(h['定位'])}</span></div><div class="${r.dup ? 'muted' : 'new'}">${r.dup ? '碎片 +3' : '新将'}</div></div>`; }).join('');
+  openModal(`<div class="shead">${title}<span class="x" data-a="close">关闭</span></div><div class="reveal${one ? ' one' : ''}">${cards}</div>${again || ''}`, 'center');
+}
+function forgeSheet(r) {
+  const one = r.length === 1;
+  const cards = r.map((o, i) => `<div class="fc fb${eqTi(o.row)}" style="animation-delay:${i * 70}ms"><div class="fs">${eqSeal(o.row)}</div><div class="fn">${esc(o.row['名'])}</div><div class="fm">${o.row['归属'] ? esc(o.row['归属']) + '专属' : esc(o.row['档'])}·${esc(o.row['槽'])}</div><div class="fe">${eqStatTxt(o.row, '')}</div></div>`).join('');
+  const C = SG.CFG;
+  openModal(`<div class="shead">出炉<span class="x" data-a="close">关闭</span></div><div class="reveal forge${one ? ' one' : ''}">${cards}</div>
+    <div class="btns"><div class="btn${G.s.gold >= C.smith ? '' : ' off'}" data-a="smith" data-k="1">再打一件<br><span class="tiny">${C.smith} 金</span></div><div class="btn main${G.s.gold >= C.smith10 ? '' : ' off'}" data-a="smith" data-k="10">再打十件<br><span class="tiny">${num(C.smith10)} 金</span></div></div>`, 'center');
 }
 
 // ---------------- 铁匠铺 ----------------
@@ -1056,13 +1065,13 @@ const ACT = {
   spd: el => { Play.speed = +el.dataset.v; store.set('sgqyl_speed', String(Play.speed)); document.querySelectorAll('[data-a="spd"]').forEach(x => x.classList.toggle('main', +x.dataset.v === Play.speed)); },
   skip: () => Play.skip(),
   'blog-full': () => { Play.full = !Play.full; render(); },
-  draw: el => { const r = G.draw(+el.dataset.k); if (!r) { toast('钱不够'); return; } save(); render(); pullSheet(r, '招贤'); },
+  draw: el => { const r = G.draw(+el.dataset.k); if (!r) { toast('钱不够'); return; } save(); render(); const C = SG.CFG; pullSheet(r, '招贤', `<div class="btns"><div class="btn${G.s.gold >= C.draw ? '' : ' off'}" data-a="draw" data-k="1">再抽一次<br><span class="tiny">${C.draw} 金</span></div><div class="btn main${G.s.gold >= C.draw10 ? '' : ' off'}" data-a="draw" data-k="10">再十连<br><span class="tiny">${num(C.draw10)} 金</span></div></div>`); },
   'draw-gold': () => { const r = G.drawGold(); if (!r) { toast('黄金不够'); return; } save(); render(); pullSheet(r, '黄金求贤'); },
   token: el => { if (G.buyTokens(+el.dataset.k)) { save(); render(); toast(`兵符 ${G.s.tokens} 枚`); } else toast('钱不够'); },
   smith: el => {
     const r = G.smith(+el.dataset.k); if (!r) { toast('钱不够'); return; }
     save(); render();
-    openModal(`<div class="shead">出炉<span class="x" data-a="close">关闭</span></div>${r.map(o => `<div class="item">${eqSeal(o.row)}<div class="grow"><div class="en">${esc(o.row['名'])}<span class="tiny muted">　${o.row['槽']}${o.row['归属'] ? '·' + esc(o.row['归属']) + '专属' : ''}</span></div><div class="ed">${eqStatTxt(o.row, '')}</div></div></div>`).join('')}`);
+    forgeSheet(r);
   },
   bagslot: el => { V.bagSlot = el.dataset.v; render(); },
   'crawl-done': () => { const f = V.crawlThen; V.crawlThen = null; if (V.crawlKind === 'epilogue' && G) { G.s.seenEpi = 1; save(); } if (f) f(); else render(); },
