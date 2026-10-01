@@ -804,17 +804,7 @@ function aboutSheet() {
     <div class="small">小红书：<b>模拟游戏大全</b></div>
     <div class="sec"><h2>许可</h2><span class="line"></span></div>
     <div class="small">版权所有 © 2026 Lynch。保留所有权利。</div>
-    <div class="small" style="margin-top:6px">这个游戏公开放在网上，只供浏览和在线游玩。公开不等于授权。</div>
-    <div class="small" style="margin-top:6px">未经 Lynch 书面许可，不得：</div>
-    <ol class="small lic">
-      <li>下载、复制、镜像、转载游戏的全部或部分内容，包括代码、文字、剧情、美术和数据；</li>
-      <li>用于任何商业目的；</li>
-      <li>修改、改编、翻译、二次创作，或拿它做衍生作品；</li>
-      <li>用 AI agent、爬虫或其他自动化程序抓取、下载、复制；</li>
-      <li>拿来训练、微调、评测任何人工智能或机器学习模型，或放进任何数据集。</li>
-    </ol>
-    <div class="small">在浏览器里打开、装到桌面自己玩，不在禁止之列。</div>
-    <div class="small" style="margin-top:6px">三国人物、史事与《三国演义》的情节属于公共文化，不在本声明之内。</div>
+    <div class="small" style="margin-top:6px">未经 Lynch 许可，不得修改、改编、翻译、二次创作，或拿它做衍生作品。</div>
     <div class="small" style="margin-top:6px">要授权，微信 lynchrrr 联系。</div>`);
 }
 // ---------------- 存档菜单 ----------------
