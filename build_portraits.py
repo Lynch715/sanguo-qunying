@@ -6,9 +6,10 @@
 3:4 整张缩放；GPT 图四周自带的白纸边先切掉（trim_mat），原图不动。文件名按 data/portrait_names.tsv。
 
 原图从哪找（按顺序）：
-  1. portrait_names.tsv 的「原图」列（相对 assets/portraits/）
-  2. assets/portraits/source/<文件>.png|.jpg|.jpeg|.webp
-  3. assets/portraits/ 下任意子目录里，文件名去掉下划线后相同的图（zhao_yun ← zhaoyun.png）
+  1. portrait_names.tsv 的「原图」列（相对 assets/portraits/，现在都指向 ../立绘/<档>/<中文名>.png）
+  2. assets/立绘/ 下任意子目录里，文件名是这人中文名的图（关羽.png）——新出的图按档放进去、用中文名即可
+  3. assets/立绘/ 下文件名是拼音的图（guan_yu.png / guanyu.png），兼容 GPT 出图规范里写的拼音文件名
+重出的图直接存成 assets/立绘/<档>/<中文名>.png，覆盖旧的那张，再跑本脚本。
 需要 Pillow：pip3 install pillow
 用法：python3 build_portraits.py [--force]
 """
@@ -16,16 +17,17 @@ import csv, os, sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PDIR = os.path.join(ROOT, 'assets', 'portraits')
+ARTD = os.path.join(ROOT, 'assets', '立绘')   # V0.7 起原图都在这里，按档分文件夹
 WEB = os.path.join(PDIR, 'web')
 SIZES = (('s', 96), ('l', 480))
 EXTS = ('.png', '.jpg', '.jpeg', '.webp')
 
 
 def index_sources():
-    """assets/portraits 下所有原图，按「去下划线的小写文件名」建索引。"""
+    """assets/立绘（和老位置 assets/portraits）下所有原图，按「去下划线的小写文件名」建索引；中文名照原样当键。旧图文件夹不算。"""
     idx = {}
-    for d, _, files in os.walk(PDIR):
-        if os.path.abspath(d).startswith(os.path.abspath(WEB)):
+    for d, _, files in list(os.walk(ARTD)) + list(os.walk(PDIR)):
+        if os.path.abspath(d).startswith(os.path.abspath(WEB)) or '_旧图' in d:
             continue
         for f in files:
             stem, ext = os.path.splitext(f)
@@ -98,11 +100,7 @@ def main():
             if os.path.exists(p):
                 src = p
         if not src:
-            for e in EXTS:
-                p = os.path.join(PDIR, 'source', fn + e)
-                if os.path.exists(p):
-                    src = p
-                    break
+            src = idx.get(r['名'].lower()) if r['类别'] != '范式' else None
         if not src:
             src = idx.get(fn.lower().replace('_', ''))
         if not src:

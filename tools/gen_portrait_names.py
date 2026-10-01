@@ -25,7 +25,7 @@ for h in H:   # 重名拼音：后出现的加 2（张宝 zhang_bao2、张嶷 zh
     k = fn[h['名']]; seen[k] += 1
     if seen[k] > 1: fn[h['名']] = k + str(seen[k])
 # 校档范式分配
-md = open(os.path.join(ROOT, '美术_校卒范式提示词_工笔.md'), encoding='utf-8').read()
+md = open(os.path.join(ROOT, '美术文档', '美术_校卒范式提示词_工笔.md'), encoding='utf-8').read()
 alloc = {m.group(1): m.group(2).lower() for m in re.finditer(r'^\| (\S+) \| \S+ \| \S+ \| (X\d\d) \|', md, re.M)}
 MOB_FILE = {'黄巾兵': 'mob_huangjin', '汉军郡兵': 'mob_hanjun', '西凉兵': 'mob_xiliang', '并州骑': 'mob_bingzhou', '袁军步卒': 'mob_yuanjun', '荆州水军': 'mob_jingzhou', '魏卒·刀盾': 'mob_wei_daodun', '魏卒·弓手': 'mob_wei_gongshou', '虎豹骑': 'mob_hubaoqi', '蜀卒·长枪': 'mob_shu_changqiang', '蜀卒·弩手': 'mob_shu_nushou', '吴卒·环刀': 'mob_wu_huandao', '吴卒·水军': 'mob_wu_shuijun', '南蛮兵': 'mob_nanman', '藤甲兵': 'mob_tengjia', '羌胡骑': 'mob_qianghu'}
 out = [['名', '文件', '类别', '原图']]
