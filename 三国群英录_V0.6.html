@@ -692,18 +692,21 @@ class Battle {
     if (!u.alive()) return;
     if (u.has('震慑')) { this.say(`${u.name} 震慑中`, { t: 'skip', u }); return; }
     const sk = u.skill;
-    if (u.prep) { const f = u.prep; u.prep = null; this.say(`${u.name} 结算 ${sk.name || '技'}`, { t: 'skill', u, n: sk.dname || sk.name, how: '结算', sk }); SG.count(sk); f(this, u); return; }
-    if (sk && (sk.type === '主动·瞬发' || sk.type === '主动·准备') && !u.has('计穷') && !u.flags['no_active']) {
+    // V0.6：每回合先掷主动技，再普攻（SG.BOTH）；关掉就是老规矩：发了技能这回合不普攻
+    const both = SG.BOTH;
+    if (u.prep) { const f = u.prep; u.prep = null; this.say(`${u.name} 结算 ${sk.name || '技'}`, { t: 'skill', u, n: sk.dname || sk.name, how: '结算', sk }); SG.count(sk); f(this, u); if (!both) return; }
+    else if (sk && (sk.type === '主动·瞬发' || sk.type === '主动·准备') && !u.has('计穷') && !u.flags['no_active']) {
       let rate = sk.rate + u.flag('rate');
       if (sk.first_round && this.round === 1) rate = 1.0;
       if (sk.gate && !sk.gate(this, u)) rate = 0;
       if (R.random() < rate) {
         if (sk.type === '主动·准备' && !u.flags['no_prep']) {
-          u.prep = sk.fn; this.say(`${u.name} 准备 ${sk.name || '技'}`, { t: 'prep', u, n: sk.dname || sk.name, sk }); this.hook_all('on_prepare', u); return;
-        }
-        this.say(`${u.name} 发动 ${sk.name || '技'}`, { t: 'skill', u, n: sk.dname || sk.name, how: '发动', sk }); SG.count(sk); sk.fn(this, u); return;
+          u.prep = sk.fn; this.say(`${u.name} 准备 ${sk.name || '技'}`, { t: 'prep', u, n: sk.dname || sk.name, sk }); this.hook_all('on_prepare', u); if (!both) return;
+        } else { this.say(`${u.name} 发动 ${sk.name || '技'}`, { t: 'skill', u, n: sk.dname || sk.name, how: '发动', sk }); SG.count(sk); sk.fn(this, u); if (!both) return; }
       }
     }
+    if (!u.alive() || u.has('震慑')) return;
+    if (!this.teams[0].some(x => x.alive()) || !this.teams[1].some(x => x.alive())) return;
     this.normal_attack(u);
   }
   run(max_rounds = 30) {
@@ -765,7 +768,9 @@ SG.Battle = Battle;
 
 // 统计钩子（对照测试用）
 SG.counts = null;
-SG.FX7 = true;   // 设计_装备数值 五.5 那七条单件特效（sim 里没做，JS 里补上；对照测试时关掉）
+SG.FX7 = true;
+SG.BOTH = true;   // V0.6：每回合技能和普攻都有
+// ↑ FX7：设计_装备数值 五.5 那七条单件特效（sim 里没做，JS 里补上；对照测试时关掉）
 SG.count = sk => { if (SG.casts) { const k = sk.cname || sk.name; SG.casts[k] = (SG.casts[k] || 0) + 1; } };
 
 // ---------------- 技能小语法 ----------------

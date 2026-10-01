@@ -6,7 +6,7 @@ const M = JSON.parse(fs.readFileSync(path.join(__dirname, 'matchups.json')));
 const H = {}; DATA.heroes.forEach(h => H[h['名']] = h);
 const [SK] = SG.loadSkills(DATA.skills);
 SG.setBattleSeed(+(process.argv[3]||7));
-SG.AGI.k = 0;   // V0.6 速度暴击闪避：Python 里没有，对照时关掉
+SG.AGI.k = 0; SG.BOTH = false;   // V0.6 速度暴击闪避：Python 里没有，对照时关掉
 SG.counts = {};
 if (process.env.NOBOND) SG.BOND_ON = false;
 const res = []; const t0 = Date.now();
