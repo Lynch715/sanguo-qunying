@@ -170,7 +170,7 @@ function conscript(p, names) {   // 残兵版：缺兵三成以上就征兵（4�
   for (const n of names) {
     const h = p.heroes[n], hp = h.hp != null ? h.hp : 1;
     if (hp >= 0.7) continue;
-    const cost = Math.ceil((1 - hp) * h.lv * (process.env.RK ? +process.env.RK : (VAR === 'C' || VAR === 'DC' ? 1 : CFG.recruit_per_k)) * h.lv);
+    const cost = Math.ceil((1 - hp) * h.lv * (process.env.RK ? +process.env.RK * h.lv : (VAR === 'C' || VAR === 'DC' ? h.lv : CFG.recruit_k(h.lv))));
     if (VAR === 'DN') continue;
     if (p.gold >= cost) { p.gold -= cost; p.sp('征兵', cost); h.hp = 1; }
   }
@@ -212,7 +212,7 @@ function run(seed) {
         }
         if (V6 && idx > 0) {
           const tm = p.team(stage, strat), capL = Math.min(50, cap + Math.min(6, Math.floor(tries / 5)));
-          const need = () => tm.reduce((a, n) => { const h = p.heroes[n], hp = h.hp != null ? h.hp : 1; let c = hp < 0.7 ? Math.ceil((1 - hp) * h.lv * (process.env.RK ? +process.env.RK : CFG.recruit_per_k) * h.lv) : 0; for (let l = h.lv + 1; l <= capL; l++) c += CFG.train_cost(l); return a + c; }, 0);
+          const need = () => tm.reduce((a, n) => { const h = p.heroes[n], hp = h.hp != null ? h.hp : 1; let c = hp < 0.7 ? Math.ceil((1 - hp) * h.lv * (process.env.RK ? +process.env.RK * h.lv : CFG.recruit_k(h.lv))) : 0; for (let l = h.lv + 1; l <= capL; l++) c += CFG.train_cost(l); return a + c; }, 0);
           let k = 0;
           while (k < 200 && p.gold < need()) { p.gold += CFG.gold_replay(+STAGES[idx - 1]['等级']); for (const n of (WALL ? Object.keys(p.heroes) : tm)) { const h = p.heroes[n]; if (WALL || (h.hp != null ? h.hp : 1) > 0) h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + WINR); } k++; }
           p.farm = (p.farm || 0) + k; (p.farmCh = p.farmCh || {})[ch] = (p.farmCh[ch] || 0) + k;

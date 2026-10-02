@@ -40,6 +40,7 @@ const CFG = {
   smith: 400, smith10: 3600, smith_pool: { '凡品': .35, '良品': .30, '精品': .20, '珍品': .10, '神品': .04, '专属': .01 },
   sell: { '凡品': 20, '良品': 60, '精品': 150, '珍品': 400, '神品': 1000 },
   recruit_per_k: 2, recruit_per_k_conquest: 2,   // V0.6：闯关征兵 4 → 2
+  recruit_base: 30, recruit_k: lv => CFG.recruit_base + CFG.recruit_per_k * lv,   // 每千兵的价
   regen_after_stage: .30,   // V0.6：赢了全员回三成（原两成）；输了不回
   replay_per_day: Infinity,   // V0.6：复刷不限次数
   sweep_per_day: 3,           // 速战每关每天 3 次（手动复刷不限）；出处关两关各 3 次，专属一周左右凑齐
@@ -373,7 +374,7 @@ class Game {
     return did;
   }
   // ---- 征兵 ----
-  recruitCost(n) { const h = this.hero(n); const lack = Math.max(0, h.lv * 1000 - h.hp); return Math.ceil(lack / 1000 * CFG.recruit_per_k * h.lv); }
+  recruitCost(n) { const h = this.hero(n); const lack = Math.max(0, h.lv * 1000 - h.hp); return Math.ceil(lack / 1000 * CFG.recruit_k(h.lv)); }
   recruit(n) { const c = this.recruitCost(n); if (!c || this.s.gold < c) return false; this.s.gold -= c; this.hero(n).hp = this.hero(n).lv * 1000; return true; }
   recruitAllCost(names) { return names.reduce((a, n) => a + this.recruitCost(n), 0); }
   // ---- 招贤 ----
