@@ -103,6 +103,17 @@ for (const nm of ['神亭酣斗', '过五关斩六将', '据水断桥', '草船�
   const k0 = g.hero('关羽'); g.s.gold = 1e6; const e0 = k0.exp; g.train('关羽', 1); ok(k0.exp === e0, 'V0.7 金币练级不清经验');
   ok(SG.CFG.train_cost_conquest(10) === 70, 'V0.7 霸业练级老价');
 }
+// 速战每关每天限次，手动复刷不限
+{
+  const g = SG.Game.fresh(7); const id = D.CHAPTERS[1].stages[0].id;
+  for (const n of Object.keys(D.H).slice(0, 9)) g.s.heroes[n] = { lv: 30, star: 3, frag: 0, hp: 30000, exp: 0 };
+  const F = Object.keys(g.s.heroes).slice(0, 9);
+  g.fight(id, F);
+  const heal = () => { for (const n in g.s.heroes) g.s.heroes[n].hp = 30000; };
+  let errs = 0; for (let k = 0; k < SG.CFG.sweep_per_day + 1; k++) { heal(); const r = g.fight(id, F, { quick: true, sweep: true }); if (r.err) errs++; }
+  ok(errs === 1 && g.sweepLeft(id) === 0, `速战每天 ${SG.CFG.sweep_per_day} 次，第 ${SG.CFG.sweep_per_day + 1} 次被拦`);
+  heal(); ok(!g.fight(id, F).err, '速战用完后手动复刷照常');
+}
 // 存档往返
 const s2 = SG.Game.load(h2.toJSON()); ok(s2 && Object.keys(s2.s.heroes).length === Object.keys(h2.s.heroes).length, '存档往返');
 console.log(bad ? `${bad} 项没过` : '全过');

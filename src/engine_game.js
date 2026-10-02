@@ -42,6 +42,7 @@ const CFG = {
   recruit_per_k: 2, recruit_per_k_conquest: 2,   // V0.6：闯关征兵 4 → 2
   regen_after_stage: .30,   // V0.6：赢了全员回三成（原两成）；输了不回
   replay_per_day: Infinity,   // V0.6：复刷不限次数
+  sweep_per_day: 3,           // 速战每关每天 3 次（手动复刷不限）；出处关两关各 3 次，专属一周左右凑齐
   gold2_clear: { '章末': 1, '隐藏': 3, '支线': 1 },
   gold2_draw: 2,
   start_gold: 1000,
@@ -481,7 +482,8 @@ class Game {
     for (let k = i - 1; k >= 0; k--) { const p = D.STAGES[k]; if ((p['类型'] === '主线' || p['类型'] === '章末') && +p['章'] <= 26) return this.isCleared(p.id); }
     return true;
   }
-  replayLeft(id) { if (this.s.replay.day !== today()) this.s.replay = { day: today(), n: {} }; return CFG.replay_per_day - (this.s.replay.n[id] || 0); }
+  replayLeft(id) { if (this.s.replay.day !== today()) this.s.replay = { day: today(), n: {}, q: {} }; return CFG.replay_per_day - (this.s.replay.n[id] || 0); }
+  sweepLeft(id) { this.replayLeft(id); const q = this.s.replay.q || (this.s.replay.q = {}); return Math.max(0, CFG.sweep_per_day - (q[id] || 0)); }
   // ---- 打关 ----
   // cells: 长度 9，放将领名或 null
   fight(id, cells, opt = {}) {
@@ -493,7 +495,9 @@ class Game {
     if (picks.length > lim.max) return { err: `这关只能带 ${lim.max} 人` };
     if (picks.some(([n]) => this.hero(n).hp < 1)) return { err: '有人没兵了，先征兵' };
     const replay = this.isCleared(id);
-    if (replay && this.replayLeft(id) <= 0) return { err: '这关今天刷满三次了' };
+    if (replay && this.replayLeft(id) <= 0) return { err: '这关今天刷满了' };
+    if (opt.sweep && replay && this.sweepLeft(id) <= 0) return { err: '这关今天的速战用完了，手动打不限' };
+    if (opt.sweep && replay) this.s.replay.q[id] = (this.s.replay.q[id] || 0) + 1;
     const A = picks.map(([n]) => this.unitOf(n));
     SG.setBattleSeed(opt.seed != null ? opt.seed : Math.floor(Math.random() * 2 ** 31));
     const res = fightStage(st, A, parseFloat(st['系数']) || 1, { log: !opt.quick, cycle: this.s.cycle, cells: picks.map(p => p[1]), tx: this.txList(), huatuo: !!this.s.heroes['华佗'] });

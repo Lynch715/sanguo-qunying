@@ -336,8 +336,8 @@ function stageSheet(id) {
       const head = replay ? `复刷：${num(Math.round(gold * G.goldMul()))} 金，${tl ? '四成' : '两成'}掉一件${tn}装备。` : `首通：${num(Math.round(gold * G.goldMul()))} 金${(() => { const g2 = (SG.CFG.gold2_clear[typ] || 0) * (G.s.cycle >= 2 ? 2 : 1) + (tl ? 1 : 0); return g2 ? `、黄金 ${g2}` : ''; })()}，必掉${tl ? '两件' : '一件'}${tn}装备。`;
       return `<div class="small muted" style="margin-top:6px">${head}</div><details class="droppool"><summary>${tn}装备 ${pool.length} 种，从里面随机掉</summary><div class="dpl">${pool.map(e => `<div>${eqSeal(e)}<b>${esc(e['名'])}</b><span>${esc(e['槽'])}　${eqStatTxt(e, '')}</span></div>`).join('')}</div></details>`; })()}
     ${exDrop ? exDropHtml(exDrop, replay) : ''}
-    <div class="btns"><div class="btn main${replay && left <= 0 ? ' off' : ''}" data-a="to-form" data-id="${id}">${lim.max < 9 ? `布阵（限 ${lim.max} 人）` : '布阵出战'}</div>${replay ? `<div class="btn${left > 0 ? '' : ' off'}" data-a="sweep" data-id="${id}">速战</div>` : ''}</div>
-    ${replay ? '<div class="tiny muted" style="margin-top:4px">速战：用现在的阵容直接出结果，不看演出。</div>' : ''}`);
+    <div class="btns"><div class="btn main${replay && left <= 0 ? ' off' : ''}" data-a="to-form" data-id="${id}">${lim.max < 9 ? `布阵（限 ${lim.max} 人）` : '布阵出战'}</div>${replay ? (q => `<div class="btn${left > 0 && q > 0 ? '' : ' off'}" data-a="sweep" data-id="${id}">速战<br><span class="tiny">今天还剩 ${q} 次</span></div>`)(G.sweepLeft(id)) : ''}</div>
+    ${replay ? '<div class="tiny muted" style="margin-top:4px">速战：用现在的阵容直接出结果，不看演出，每关每天 ' + SG.CFG.sweep_per_day + ' 次。</div>' : ''}`);
 }
 
 // ---------------- 将领列表 ----------------
@@ -835,6 +835,7 @@ function sweepSheet(st, r) {
     <div class="result ${win ? 'win' : 'lose'}">${win ? '胜' : '败'}</div>
     ${win ? money : '<div class="small muted" style="text-align:center">败退。折损的兵马要去征兵补齐。</div>'}
     ${items ? `<div class="tiny muted" style="margin-top:8px">掉落</div><div class="reveal forge${(rew.items || []).length === 1 ? ' one' : ''}">${items}</div>` : win ? '<div class="small muted" style="text-align:center;margin-top:6px">这次没掉装备</div>' : ''}
+    <div class="tiny muted" style="text-align:center;margin-top:4px">这关今天还能速战 ${G.sweepLeft(st.id)} 次</div>
     ${win ? exclNote(rew) : ''}${(() => { const L = (rew.exp || []).filter(x => x.e > 0); return L.length ? `<div class="tiny muted" style="margin-top:8px">经验</div><div class="swx">${L.map(x => `<span>${esc(x.n)} <b>+${num(x.e)}</b>${x.up ? `<i>升到 ${x.lv} 级</i>` : ''}</span>`).join('')}</div>` : ''; })()}${achRows(r.ach)}
     <div class="btns">${win ? `<div class="btn main" data-a="close">好</div>` : `<div class="btn" data-a="close">好</div><div class="btn main" data-a="to-form" data-id="${st.id}">去布阵</div>`}</div>`, 'center');
 }
@@ -992,7 +993,7 @@ const ACT = {
     const id = el.dataset.id, st = D.STAGE[id];
     const lim = SG.stageLimit(st);
     const F = G.s.formation.slice(); if (F.filter(Boolean).length > lim.max) { toast(`这关只能带 ${lim.max} 人，先去布阵`); return; }
-    const r = G.fight(id, F, { quick: true });
+    const r = G.fight(id, F, { quick: true, sweep: true });
     if (r.err) { toast(r.err); return; }
     glog(`速战 ${st['关']}：${r.res.win ? `胜，金 +${r.rew.gold}${r.rew.items.length ? '，得 ' + r.rew.items.map(it => D.EQID[it.id]['名']).join('、') : ''}` : '败'}`);
     save(); render(); sweepSheet(st, r);
@@ -1023,7 +1024,7 @@ const ACT = {
   'refight': () => { const id = V.battle && V.battle.out.stageId; if (!id) return; const r = G.fight(id, G.s.formation); if (r.err) { toast(r.err); return; } quietAch(r.ach); save(); Play.begin({ res: r.res, rew: r.rew, ach: r.ach, stageId: id }); },
   'to-form': el => {
     const id = el.dataset.id, st = D.STAGE[id];
-    if (G.isCleared(id) && G.replayLeft(id) <= 0) { toast('这关今天刷满三次了'); return; }
+    if (G.isCleared(id) && G.replayLeft(id) <= 0) { toast('这关今天刷满了'); return; }
     closeModal(); V.stage = id;
     const lim = SG.stageLimit(st);
     if (G.s.formation.filter(Boolean).length > lim.max || !G.s.formation.some(Boolean)) autoForm(lim.max);
