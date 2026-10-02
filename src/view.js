@@ -26,7 +26,7 @@ function toast(msg) {
   setTimeout(() => d.remove(), 1800);
 }
 function openModal(html, cls = '') { const m = $('modal'); m.innerHTML = `<div class="sheet">${html}</div>`; m.className = 'on' + (cls ? ' ' + cls : ''); m.scrollTop = 0; }
-function closeModal() { const m = $('modal'); m.className = ''; m.innerHTML = ''; }
+function closeModal() { const m = $('modal'); m.className = ''; m.innerHTML = ''; V.pickAt = null; }
 let askFn = null;
 function ask(title, body, yes, fn) {
   askFn = fn;
@@ -502,10 +502,19 @@ VIEWS.form = () => {
     </div>
     ${st ? `<div class="btns"><div class="btn" data-a="go" data-v="stages">回去</div><div class="btn main${cnt && cnt <= lim.max ? '' : ' off'}" data-a="fight">出战</div></div>` : ''}
     ${V.cq && SG.Conq ? SG.Conq.formButtons(cnt) : ''}
-    <div class="sec"><h2>${V.sel != null ? `选人放进${ROWLAB[Math.floor(V.sel / 3)]}第 ${V.sel % 3 + 1} 格` : '点人上阵，点阵上的人看详情，拖动换位'}</h2><span class="line"></span></div>
+    <div class="sec"><h2>${V.sel != null ? `选人放进${ROWLAB[Math.floor(V.sel / 3)]}第 ${V.sel % 3 + 1} 格` : '点空格选人，点阵上的人看详情，拖动换位'}</h2><span class="line"></span></div>
     ${filterBar()}
     <div class="hgrid">${L.map(n => heroCard(n, 'pick')).join('')}</div>`;
 };
+// 点空格弹出选将：只列没上阵的人，筛选、排序跟将领页共用
+function pickSheet(i) {
+  V.pickAt = i;
+  const F = G.s.formation, pool = new Set(formPool());
+  const L = sortedHeroes().filter(n => pool.has(n) && !F.includes(n));
+  openModal(`<div class="shead">放进${ROWLAB[Math.floor(i / 3)]}第 ${i % 3 + 1} 格<span class="x" data-a="close">关闭</span></div>${filterBar()}
+    <div class="hgrid" style="margin-top:6px">${L.map(n => heroCard(n, 'pick-to')).join('') || '<div class="empty">没有可上阵的人</div>'}</div>`, 'center');
+}
+function repick() { if (V.pickAt != null && $('modal').classList.contains('on')) { const m = $('modal'), y = m.querySelector('.sheet') ? m.querySelector('.sheet').scrollTop : 0; pickSheet(V.pickAt); const s = m.querySelector('.sheet'); if (s) s.scrollTop = y; } }
 function autoForm(max) {
   const L = formPool().filter(n => G.hero(n).hp >= 1).sort((a, b) => G.power(b) - G.power(a)).slice(0, max);
   // 统率高的放前排
@@ -1032,8 +1041,8 @@ const ACT = {
   },
   'cx-tog': el => { V.cx = V.cx || {}; V.cx[el.dataset.k] = !V.cx[el.dataset.k]; render(); },
   hero: el => { V.hero = el.dataset.n; V.heroFrom = el.dataset.from || null; V.view = 'hero'; render(); window.scrollTo(0, 0); },
-  filt: el => { V.filt[el.dataset.k] = el.dataset.v; render(); },
-  sort: el => { V.sort = el.dataset.v; render(); },
+  filt: el => { V.filt[el.dataset.k] = el.dataset.v; render(); repick(); },
+  sort: el => { V.sort = el.dataset.v; render(); repick(); },
   train: el => { const k = +el.dataset.k; const n = G.train(V.hero, k); if (!n) toast(G.hero(V.hero).lv >= G.maxLv() ? '已到上限' : '钱不够'); save(); render(); },
   star: () => { if (G.starUp(V.hero)) { toast(`${V.hero} 升到 ${G.hero(V.hero).star} 星`); save(); render(); } else toast('碎片加兵符不够'); },
   recruit: () => { if (G.recruit(V.hero)) { save(); render(); } else toast('钱不够或兵是满的'); },
@@ -1047,8 +1056,15 @@ const ACT = {
   unequip: el => { G.unequip(V.hero, el.dataset.sl); save(); closeModal(); render(); },
   cell: el => {
     if (Date.now() - DRAG.end < 400) return;
-    const i = +el.dataset.i;
-    V.sel = V.sel === i ? null : i; render();
+    pickSheet(+el.dataset.i);
+  },
+  'pick-to': el => {
+    const i = V.pickAt, n = el.dataset.n, F = G.s.formation;
+    if (i == null) return;
+    const lim = !V.cq && V.stage ? SG.stageLimit(D.STAGE[V.stage]).max : 9;
+    if (!F[i] && F.filter(Boolean).length >= lim) { toast(`这关只能带 ${lim} 人`); return; }
+    const at = F.indexOf(n); if (at >= 0) F[at] = null;
+    F[i] = n; save(); closeModal(); render();
   },
   'form-hero': el => {
     if (Date.now() - DRAG.end < 400) return;
@@ -1094,7 +1110,7 @@ const ACT = {
   'crawl-done': () => { const f = V.crawlThen; V.crawlThen = null; if (V.crawlKind === 'epilogue' && G) { G.s.seenEpi = 1; save(); } if (f) f(); else render(); },
   'crawl-intro': () => showCrawl('intro', () => render()),
   'crawl-epi': () => showCrawl('epilogue', () => { if (V.view === 'battle') render(); else go('main'); }),
-  'filt-frag': () => { V.filt.frag = !V.filt.frag; render(); },
+  'filt-frag': () => { V.filt.frag = !V.filt.frag; render(); repick(); },
   'sell-mode': () => { V.sellMode = !V.sellMode; V.sellSel = new Set(); render(); },
   'sell-tog': el => { const u = +el.dataset.uid; V.sellSel.has(u) ? V.sellSel.delete(u) : V.sellSel.add(u); render(); },
   'sell-none': () => { V.sellSel = new Set(); render(); },
