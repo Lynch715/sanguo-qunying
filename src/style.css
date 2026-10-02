@@ -389,3 +389,16 @@ ol.lic li{margin:2px 0}
 .gcell.empty-c{border:2px dashed var(--ink-4);background:transparent}
 .gcell.empty-c .por{background:transparent}
 .gcell.sel{outline:2px solid var(--qing);outline-offset:1px}
+
+.swm{display:flex;justify-content:center;gap:22px;font-size:1.05em;margin:2px 0 4px}
+.swm b{font-family:var(--f-title);font-size:1.25em;color:var(--zhu)}
+
+.swx{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 8px;font-size:.84em}
+.swx span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.swx b{color:var(--qing);font-weight:400}.swx i{display:block;font-style:normal;color:var(--zhu);font-size:.9em}
+.droppool{margin-top:2px;font-size:.84em}
+.droppool summary{cursor:pointer;color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
+.dpl{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;margin:6px 0 2px;color:var(--ink)}
+.dpl>div{display:flex;align-items:center;gap:5px;min-width:0;line-height:1.3}
+.dpl>div b{font-weight:400;font-family:var(--f-title);white-space:nowrap}
+.dpl>div span{font-size:.82em;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpl.ex{grid-template-columns:1fr;margin:3px 0 4px}.dpl.ex>div{cursor:pointer}

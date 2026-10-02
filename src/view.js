@@ -300,7 +300,7 @@ VIEWS.stages = () => {
 // 关卡页的专属掉落：出处关（V0.6）＋本关出场无双（老掉法）
 function exDropHtml(x, replay) {
   const line = (o, tok) => { const m = G.exclMiss(o.n);
-    return m.length ? `<div>可能掉落：${m.map(e => `<span data-a="eq-info" data-id="${esc(e.id)}" style="text-decoration:underline">${esc(e['名'])}</span>`).join('、')}（${esc(o.n)}专属）${tok && replay && o.tok ? `　信物 ${o.tok}/${SG.CFG.src_token}` : ''}</div>` : `<div class="muted">${esc(o.n)}专属已集齐</div>`; };
+    return m.length ? `<div>可能掉落${esc(o.n)}专属：</div><div class="dpl ex">${m.map(e => `<div data-a="eq-info" data-id="${esc(e.id)}">${eqSeal(e)}<b>${esc(e['名'])}</b><span>${esc(e['槽'])}　${eqStatTxt(e, '')}</span></div>`).join('')}</div><div>${tok && replay && o.tok ? `　信物 ${o.tok}/${SG.CFG.src_token}` : ''}</div>` : `<div class="muted">${esc(o.n)}专属已集齐</div>`; };
   return `<div class="small" style="color:var(--zhu);margin-top:4px">${x.src.map(o => line(o, 1)).join('')}${x.L.map(o => line(o, 0)).join('')}</div>`;
 }
 const exSrcHtml = n => { const L = D.EXSRC_OF[n]; return L ? `出处：${L.map(id => `<span data-a="src-stage" data-id="${id}" style="text-decoration:underline">${esc(D.STAGE[id]['关'])}</span>`).join('、')}${(G.s.token || {})[n] ? `　信物 ${G.s.token[n]}/${SG.CFG.src_token}` : ''}` : ''; };
@@ -331,7 +331,10 @@ function stageSheet(id) {
     <div class="sec"><h2>敌方</h2><span class="line"></span><span class="tp">${foe.lv} 级　${'★'.repeat(foe.star)}　${foe.names.length} 人</span></div>
     <div class="foes">${foes}</div>
     ${(() => { const fb = SG.activeBonds(foe.names); return fb.length ? `<div class="small" style="margin-top:6px">敌方羁绊：${fb.map(a => `【${esc(a.b.name)}】${bondVal(a.b, a.t)}`).join('　')}</div>` : ''; })()}
-    <div class="small muted" style="margin-top:6px">${replay ? `复刷：${num(Math.round(gold * G.goldMul()))} 金，${G.txHas('贪狼') ? '四成掉一件低两档' : '两成掉一件低一档'}的装备。` : `首通：${num(Math.round(gold * G.goldMul()))} 金${(() => { const g2 = (SG.CFG.gold2_clear[typ] || 0) * (G.s.cycle >= 2 ? 2 : 1) + (G.txHas('天狼') ? 1 : 0); return g2 ? `、黄金 ${g2}` : ''; })()}，必掉${G.txHas('贪狼') ? '两件' : '一件'}装备。`}</div>
+    ${(() => { const tl = G.txHas('贪狼'), dt = SG.CFG.drop_tier(+s['章']), ti = Math.max(0, dt - (replay ? 1 : 0) - (tl ? 1 : 0)), tn = SG.EQ_TIERS[ti];
+      const pool = D.EQROWS.filter(e => e['档'] === tn && !e['归属']);
+      const head = replay ? `复刷：${num(Math.round(gold * G.goldMul()))} 金，${tl ? '四成' : '两成'}掉一件${tn}装备。` : `首通：${num(Math.round(gold * G.goldMul()))} 金${(() => { const g2 = (SG.CFG.gold2_clear[typ] || 0) * (G.s.cycle >= 2 ? 2 : 1) + (tl ? 1 : 0); return g2 ? `、黄金 ${g2}` : ''; })()}，必掉${tl ? '两件' : '一件'}${tn}装备。`;
+      return `<div class="small muted" style="margin-top:6px">${head}</div><details class="droppool"><summary>${tn}装备 ${pool.length} 种，从里面随机掉</summary><div class="dpl">${pool.map(e => `<div>${eqSeal(e)}<b>${esc(e['名'])}</b><span>${esc(e['槽'])}　${eqStatTxt(e, '')}</span></div>`).join('')}</div></details>`; })()}
     ${exDrop ? exDropHtml(exDrop, replay) : ''}
     <div class="btns"><div class="btn main${replay && left <= 0 ? ' off' : ''}" data-a="to-form" data-id="${id}">${lim.max < 9 ? `布阵（限 ${lim.max} 人）` : '布阵出战'}</div>${replay ? `<div class="btn${left > 0 ? '' : ' off'}" data-a="sweep" data-id="${id}">速战</div>` : ''}</div>
     ${replay ? '<div class="tiny muted" style="margin-top:4px">速战：用现在的阵容直接出结果，不看演出。</div>' : ''}`);
@@ -823,6 +826,18 @@ function exclNote(rew) {
   const L = (rew.excl || []).map(e => e.how === 'token' ? `${esc(e.n)}的信物 +1（${e.tok}/${SG.CFG.src_token}）` : e.how === 'swap' ? `${esc(e.n)}的信物凑齐，换得 ${esc(D.EQID[e.id]['名'])}` : '').filter(Boolean);
   return L.length ? `<div class="small" style="margin-top:4px;color:var(--zhu)">${L.join('<br>')}</div>` : '';
 }
+// 速战结算：跟正常打完一样列金钱、黄金、装备、专属信物、经验、功名
+function sweepSheet(st, r) {
+  const win = r.res.win, rew = r.rew || {};
+  const items = (rew.items || []).map((it, i) => { const row = D.EQID[it.id]; return `<div class="fc fb${eqTi(row)}" style="animation-delay:${i * 80}ms"><div class="fs">${eqSeal(row)}</div><div class="fn">${esc(row['名'])}</div><div class="fm">${row['归属'] ? esc(row['归属']) + '专属' : esc(row['档'])}·${esc(row['槽'])}</div><div class="fe">${eqStatTxt(row, '')}</div></div>`; }).join('');
+  const money = win ? `<div class="swm"><span>金 <b>+${num(rew.gold || 0)}</b></span>${rew.gold2 ? `<span>黄金 <b>+${rew.gold2}</b></span>` : ''}</div>` : '';
+  openModal(`<div class="shead">速战　${esc(st['关'])}<span class="x" data-a="close">关闭</span></div>
+    <div class="result ${win ? 'win' : 'lose'}">${win ? '胜' : '败'}</div>
+    ${win ? money : '<div class="small muted" style="text-align:center">败退。折损的兵马要去征兵补齐。</div>'}
+    ${items ? `<div class="tiny muted" style="margin-top:8px">掉落</div><div class="reveal forge${(rew.items || []).length === 1 ? ' one' : ''}">${items}</div>` : win ? '<div class="small muted" style="text-align:center;margin-top:6px">这次没掉装备</div>' : ''}
+    ${win ? exclNote(rew) : ''}${(() => { const L = (rew.exp || []).filter(x => x.e > 0); return L.length ? `<div class="tiny muted" style="margin-top:8px">经验</div><div class="swx">${L.map(x => `<span>${esc(x.n)} <b>+${num(x.e)}</b>${x.up ? `<i>升到 ${x.lv} 级</i>` : ''}</span>`).join('')}</div>` : ''; })()}${achRows(r.ach)}
+    <div class="btns">${win ? `<div class="btn" data-a="close">好</div><div class="btn main" data-a="sweep" data-id="${st.id}">再速战一次</div>` : `<div class="btn" data-a="close">好</div><div class="btn main" data-a="to-form" data-id="${st.id}">去布阵</div>`}</div>`, 'center');
+}
 function quietAch(L) { V.achToast = V.achToast || {}; (L || []).forEach(a => V.achToast[a.id] = 1); }
 function achRows(L) {
   if (!L || !L.length || !G.s.ach) return '';
@@ -980,7 +995,7 @@ const ACT = {
     const r = G.fight(id, F, { quick: true });
     if (r.err) { toast(r.err); return; }
     glog(`速战 ${st['关']}：${r.res.win ? `胜，金 +${r.rew.gold}${r.rew.items.length ? '，得 ' + r.rew.items.map(it => D.EQID[it.id]['名']).join('、') : ''}` : '败'}`);
-    save(); closeModal(); render(); toast(r.res.win ? `速战得胜，金 +${r.rew.gold}${r.rew.items.length ? '，掉了一件装备' : ''}` : '速战没打过');
+    save(); render(); sweepSheet(st, r);
   },
   'copy-wx': () => { try { navigator.clipboard.writeText('lynchrrr'); toast('微信号复制了'); } catch (e) { toast('微信号：lynchrrr'); } },
   'ach-claim': (el) => { const r = G.achClaim(el.dataset.id); if (r) { toast(`领了「${r.a.name}」：${SG.rewardText(r.a.tier)}${r.a.title ? `，得称号「${r.a.title}」` : ''}`); glog(`功名「${r.a.name}」`); save(); render(); } },
