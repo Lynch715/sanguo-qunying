@@ -836,7 +836,7 @@ function sweepSheet(st, r) {
     ${win ? money : '<div class="small muted" style="text-align:center">败退。折损的兵马要去征兵补齐。</div>'}
     ${items ? `<div class="tiny muted" style="margin-top:8px">掉落</div><div class="reveal forge${(rew.items || []).length === 1 ? ' one' : ''}">${items}</div>` : win ? '<div class="small muted" style="text-align:center;margin-top:6px">这次没掉装备</div>' : ''}
     ${win ? exclNote(rew) : ''}${(() => { const L = (rew.exp || []).filter(x => x.e > 0); return L.length ? `<div class="tiny muted" style="margin-top:8px">经验</div><div class="swx">${L.map(x => `<span>${esc(x.n)} <b>+${num(x.e)}</b>${x.up ? `<i>升到 ${x.lv} 级</i>` : ''}</span>`).join('')}</div>` : ''; })()}${achRows(r.ach)}
-    <div class="btns">${win ? `<div class="btn" data-a="close">好</div><div class="btn main" data-a="sweep" data-id="${st.id}">再速战一次</div>` : `<div class="btn" data-a="close">好</div><div class="btn main" data-a="to-form" data-id="${st.id}">去布阵</div>`}</div>`, 'center');
+    <div class="btns">${win ? `<div class="btn main" data-a="close">好</div>` : `<div class="btn" data-a="close">好</div><div class="btn main" data-a="to-form" data-id="${st.id}">去布阵</div>`}</div>`, 'center');
 }
 function quietAch(L) { V.achToast = V.achToast || {}; (L || []).forEach(a => V.achToast[a.id] = 1); }
 function achRows(L) {
