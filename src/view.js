@@ -354,14 +354,15 @@ function sortedHeroes() {
 }
 function inTeam(n) { return G.s.formation.includes(n); }
 function guardOf(n) { return G.kind === 'conquest' ? G.guards()[n] : null; }
-function heroCard(n, act, extraCls = '') {
+function heroCard(n, act, extraCls = '', attrs = '') {
   const h = D.H[n], s = G.hero(n);
-  const r = s.hp / (s.lv * 1000);
-  return `<div class="hc${inTeam(n) ? ' inteam' : ''}${extraCls}" data-a="${act}" data-n="${esc(n)}">
+  const r = s.hp / (s.lv * 1000), grid = extraCls.includes('gcell');
+  const xp = s.lv < G.maxLv() && (s.exp || 0) >= SG.CFG.exp_need(s.lv) * .9;
+  return `<div class="hc tb-${h['品阶']}${!grid && inTeam(n) ? ' inteam' : ''}${extraCls}" data-a="${act}" data-n="${esc(n)}"${attrs}>${!grid && inTeam(n) ? '<span class="onf">阵上</span>' : ''}
     <span class="tag">${TSEAL(h['品阶'])}${guardOf(n) ? ` <span class="seal" style="background:var(--ink-2)">守${esc(guardOf(n))}</span>` : ''}</span>${G.canStar(n) ? '<span class="dot"></span>' : ''}
     ${por(n)}
     <div class="nm">${facTag(h['阵营'])}${esc(n)}</div>
-    <div class="meta"><span>Lv.${s.lv}</span><span class="stars">${stars(s.star)}</span></div>
+    <div class="meta"><span>Lv.${s.lv}${xp ? '<i class="xpdot"></i>' : ''}</span><span class="stars">${stars(s.star)}</span></div>
     ${(() => { const p = G.panel(n), wj = h['定位'] === '武将'; return `<div class="meta st"><span>${wj ? '武' : '智'} ${Math.round(wj ? p.atk : p.int)}</span><span>统 ${Math.round(p.def)}</span><span>速 ${Math.round(p.agi)}</span></div>`; })()}
     <div class="meta st"><span>兵 ${wan(s.hp)} / ${wan(s.lv * 1000)}</span></div>
     <div class="bar"><em class="${r < .5 ? 'low' : ''}" style="width:${clamp(r * 100, 0, 100)}%"></em></div></div>`;
@@ -474,8 +475,8 @@ VIEWS.form = () => {
       const i = r * 3 + c, n = F[i];
       if (n && G.hero(n)) {
         const s = G.hero(n), ratio = s.hp / (s.lv * 1000);
-        grid += `<div class="gcell fill" data-a="form-hero" data-n="${esc(n)}" data-i="${i}">${por(n)}<div class="gn">${esc(n)} Lv.${s.lv}${s.lv < G.maxLv() && (s.exp || 0) >= SG.CFG.exp_need(s.lv) * .9 ? '<i class="xpdot"></i>' : ''}</div>${(() => { const p = G.panel(n), wj = D.H[n]['定位'] === '武将'; return `<div class="gs"><span>${wj ? '武' : '智'} ${Math.round(wj ? p.atk : p.int)}</span><span>统 ${Math.round(p.def)}</span></div><div class="gs"><span>速 ${Math.round(p.agi)}</span><span>兵 ${wan(s.hp)}</span></div>`; })()}<div class="bar"><em class="${ratio < .5 ? 'low' : ''}" style="width:${clamp(ratio * 100, 0, 100)}%"></em></div></div>`;
-      } else grid += `<div class="gcell empty-c${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}">空</div>`;
+        grid += heroCard(n, 'form-hero', ' gcell fill', ` data-i="${i}"`);
+      } else grid += `<div class="hc gcell empty-c${V.sel === i ? ' sel' : ''}" data-a="cell" data-i="${i}"><div class="por"><span class="ph">空</span></div><div class="nm">&nbsp;</div><div class="meta">&nbsp;</div><div class="meta st">&nbsp;</div><div class="meta st">&nbsp;</div><div class="bar" style="visibility:hidden"><em></em></div></div>`;
     }
   }
   const names = F.filter(Boolean);
