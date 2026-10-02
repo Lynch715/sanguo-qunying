@@ -47,7 +47,9 @@ const CFG = {
   gold2_clear: { '章末': 1, '隐藏': 3, '支线': 1 },
   gold2_draw: 2,
   start_gold: 1000,
-  foe_mul: (ch, typ) => (1.0 + 0.01 * (ch - 1)) * (typ === '章末' ? 1.10 : 1.0) * (typ === '隐藏' ? 1.1 : 1.0),
+  foe_mul: (ch, typ) => (1.0 + 0.01 * (ch - 1)) * (CFG.type_mul[typ] || 1),
+  // 10-02 加难：章末属性 ×1.10 → ×1.20；隐藏 ×1.10 → ×1.25、一律 5 星、敌方等级不低于麾下最高等级 + 3（封顶 70）
+  type_mul: { '章末': 1.20, '隐藏': 1.25 }, boss_lv_plus: 0, hidden_over: 3, hidden_cap: 70, hidden_star: 5,
   drop_tier: ch => Math.min(4, ch <= 25 ? Math.floor((ch - 1) / 5) : 4),
   replay_drop: .20, boss_excl: .03, hidden_excl: .10, side_excl: .03,
   tx_reroll: 10,
@@ -166,10 +168,11 @@ function limitParts(stage) {
 SG.stageLimit = stageLimit; SG.limitParts = limitParts;
 
 // 周目换算：等级平移到 30–60，星级 +1，杂兵换同阵营名档（按关卡 id 哈希定死），隐藏关不换
-function stageFoes(stage, cycle = 1, tx = null) {
+function stageFoes(stage, cycle = 1, tx = null, myLv = 0) {
   const D = SG.D;
   let names = stage['敌方'].split('、').filter(x => x);
   let lv = +stage['等级'], star = +stage['星级'];
+  if (stage['类型'] === '章末') lv += CFG.boss_lv_plus;
   if (cycle >= 2) {
     lv = Math.min(70, Math.round(30 + (lv - 1) * 30 / 52) + (cycle - 2) * 10);
     star = Math.min(5, star + 1);
@@ -184,10 +187,14 @@ function stageFoes(stage, cycle = 1, tx = null) {
       });
     }
   }
+  if (stage['类型'] === '隐藏') { if (CFG.hidden_star) star = CFG.hidden_star; if (myLv) lv = Math.min(CFG.hidden_cap, Math.max(lv, myLv + CFG.hidden_over)); }
   if (tx && tx.includes('天狼')) names = txMob(stage, names);
   return { names, lv, star };
 }
 SG.stageFoes = stageFoes;
+// 敌方属性系数：表里的「系数」已含章末 ×1.10，这里换成 type_mul
+function stageEase(st) { const e = parseFloat(st['系数']) || 1, t = st['类型']; return t === '章末' || t === '隐藏' ? e / 1.10 * (CFG.type_mul[t] || 1) : e; }
+SG.stageEase = stageEase;
 
 function apply_limit(stage, A, B) {
   const lim = stage['限制'] || '';
@@ -259,7 +266,7 @@ function txMob(stage, names) {
 // 返回 { win, rounds, battles:[Battle], foes:[Unit] }
 function fightStage(stage, A, ease, opt = {}) {
   const log = !!opt.log, cycle = opt.cycle || 1;
-  const { names: enemies, lv, star } = stageFoes(stage, cycle, (opt.txHalf || {})['天狼'] === 'g' ? null : opt.tx);
+  const { names: enemies, lv, star } = stageFoes(stage, cycle, (opt.txHalf || {})['天狼'] === 'g' ? null : opt.tx, opt.myLv || 0);
   const out = { win: false, rounds: 0, battles: [], A };
   if (opt.tx && opt.tx.length) { txPlayer(A, opt); opt._tlHp = tlFull(stage, cycle, opt); }
   const fixCells = (b) => { if (opt.cells) A.forEach((u, i) => { if (opt.cells[i] != null) u.idx = opt.cells[i]; }); };
@@ -349,7 +356,8 @@ class Game {
   // 掉一件 n 缺的专属；齐了返回 null
   dropExcl(n) { const m = this.exclMiss(n); return m.length ? this.addItem(this.rng.choice(m).id) : null; }
   bondsOff() { return this.txHas('破军'); }
-  foesOf(id) { return stageFoes(this.D.STAGE[id], this.s.cycle, this.txList()); }
+  myLv() { let m = 0; for (const n in this.s.heroes) m = Math.max(m, this.s.heroes[n].lv); return m; }
+  foesOf(id) { return stageFoes(this.D.STAGE[id], this.s.cycle, this.txList(), this.myLv()); }
   hero(n) { return this.s.heroes[n]; }
   addHero(n) {
     const h = this.s.heroes[n];
@@ -501,16 +509,16 @@ class Game {
     if (opt.sweep && replay) this.s.replay.q[id] = (this.s.replay.q[id] || 0) + 1;
     const A = picks.map(([n]) => this.unitOf(n));
     SG.setBattleSeed(opt.seed != null ? opt.seed : Math.floor(Math.random() * 2 ** 31));
-    const res = fightStage(st, A, parseFloat(st['系数']) || 1, { log: !opt.quick, cycle: this.s.cycle, cells: picks.map(p => p[1]), tx: this.txList(), huatuo: !!this.s.heroes['华佗'] });
+    const res = fightStage(st, A, stageEase(st), { myLv: this.myLv(), log: !opt.quick, cycle: this.s.cycle, cells: picks.map(p => p[1]), tx: this.txList(), huatuo: !!this.s.heroes['华佗'] });
     // 残兵带回。赢了全员回三成；输了（V0.6）谁都不回，补兵只能征兵
     picks.forEach(([n], i) => { this.hero(n).hp = Math.max(0, A[i].hp); });
     // V0.7 战斗经验（先结经验升级，再回三成，新长的一千兵是满的）
-    const fe = stageFoes(st, this.s.cycle, this.txList());
+    const fe = this.foesOf(id);
     const expL = picks.map(([n], i) => { const h = this.hero(n), lv0 = h.lv; const e = expFor(lv0, fe.lv, fe.names.length, res.win, A[i].alive(), replay); const up = this.gainExp(n, e); return { n, e, up, lv: h.lv }; });
     if (res.win) for (const n in this.s.heroes) { const h = this.s.heroes[n]; h.hp = Math.min(h.lv * 1000, h.hp + h.lv * 1000 * CFG.regen_after_stage); }
     const rew = { gold: 0, gold2: 0, items: [], first: false, replay, excl: [], exp: expL };
     if (res.win) {
-      const lv = stageFoes(st, this.s.cycle).lv, ch = +st['章'], typ = st['类型'];
+      const lv = stageFoes(st, this.s.cycle, null, this.myLv()).lv, ch = +st['章'], typ = st['类型'];
       if (!replay) {
         rew.first = true;
         rew.gold = Math.round(CFG.gold_clear(lv) * (typ === '章末' ? CFG.boss_mult : typ === '隐藏' ? CFG.hidden_mult : 1) * this.goldMul());
@@ -547,7 +555,7 @@ class Game {
       // 专属掉落：章末 3%、隐藏 10%、支线 3%（V0.4），掉本关出场无双缺的件（V0.6 起只掉缺的）
       const pe = typ === '章末' ? CFG.boss_excl : typ === '隐藏' ? CFG.hidden_excl : typ === '支线' ? CFG.side_excl : 0;
       if (pe && this.rng.random() < pe) {
-        const ws = [...new Set(stageFoes(st, this.s.cycle, this.txList()).names)].filter(n => D.EXCL[n] && this.exclMiss(n).length);
+        const ws = [...new Set(this.foesOf(id).names)].filter(n => D.EXCL[n] && this.exclMiss(n).length);
         if (ws.length) { const n = this.rng.choice(ws), it = this.dropExcl(n); rew.items.push(it); rew.excl.push({ n, how: 'boss', id: it.id }); }
       }
       const gb = picks.reduce((a, [n]) => a + (CFG.gold_hero[n] || 0), 0);
@@ -566,7 +574,7 @@ class Game {
     return Math.round(U.reduce((a, u) => a + unitPower(u), 0));
   }
   stagePower(id) {
-    const st = this.D.STAGE[id], f = stageFoes(st, this.s.cycle, this.txList()), ease = parseFloat(st['系数']) || 1;
+    const st = this.D.STAGE[id], f = this.foesOf(id), ease = stageEase(st);
     const B = f.names.map(n => mkEnemy(n, f.lv, f.star, ease)); apply_limit(st, [], B); SG.applyBonds(B);
     for (const p of txParts({ tx: this.txList() })) if (p.B) B.forEach(p.B);
     if (tlFull(st, this.s.cycle, { tx: this.txList() })) for (const u of B) { u.maxhp *= 1.10; u.hp *= 1.10; }

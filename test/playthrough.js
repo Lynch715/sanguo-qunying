@@ -180,7 +180,7 @@ function fight(p, stage, ease, strat) {
   if (!names.length) return [false, 0];
   const gears = p.equip_team(names);
   const A = names.map((n, i) => { const u = mk_player_unit(p, n, i < gears.length ? gears[i] : null); if (CANBING) u.hp = u.maxhp * Math.max(0.001, p.heroes[n].hp != null ? p.heroes[n].hp : 1); return u; });
-  const r = SG.fightStage(stage, A, ease, {});
+  const r = SG.fightStage(stage, A, ease, { myLv: Math.max(...Object.values(p.heroes).map(h => h.lv || 1)) });
   if (!process.env.NOEXP && r.foes && r.foes.length) { const flv = r.foes[0].lv, nf = SG.stageFoes(stage, 1).names.length; A.forEach(u => { const h = p.heroes[u.name]; p.gainExp(u.name, SG.expFor(h.lv, flv, nf, r.win, u.alive(), false)); }); }
   if (CANBING) {
     if (V6) { A.forEach(u => { const h = p.heroes[u.name]; h.hp = Math.max(0, u.hp / u.maxhp); if (r.win && u.hp > 0 && !WALL) h.hp = Math.min(1, h.hp + WINR); }); if (r.win && WALL) for (const n in p.heroes) { const h = p.heroes[n]; h.hp = Math.min(1, (h.hp != null ? h.hp : 1) + WINR); } LAST = [A, r.foes || []]; return [r.win, r.rounds]; }

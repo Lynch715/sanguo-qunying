@@ -487,7 +487,7 @@ VIEWS.form = () => {
   const pool = new Set(formPool());
   const L = sortedHeroes().filter(n => pool.has(n));
   const head = V.cq && SG.Conq ? SG.Conq.formHead() : '';
-  return `${head}${st ? `<div class="card small"><b class="kai">${esc(st['关'])}</b>　${SG.stageFoes(st, G.s.cycle).lv} 级${lim.max < 9 ? `　<span style="color:var(--zhu)">只能带 ${lim.max} 人</span>` : ''}${SG.limitParts(st).rules.length ? `<div class="muted">${SG.limitParts(st).rules.map(esc).join('；')}</div>` : ''}</div>` : ''}
+  return `${head}${st ? `<div class="card small"><b class="kai">${esc(st['关'])}</b>　${G.foesOf(st.id).lv} 级${lim.max < 9 ? `　<span style="color:var(--zhu)">只能带 ${lim.max} 人</span>` : ''}${SG.limitParts(st).rules.length ? `<div class="muted">${SG.limitParts(st).rules.map(esc).join('；')}</div>` : ''}</div>` : ''}
     <div class="sec"><h2>布阵</h2><span class="line"></span><span class="tp">${cnt} / ${lim.max} 人　总战力 ${num(G.teamPower())}</span></div>
     <div class="grid9">${grid}</div>
     ${bondPanel(names)}
