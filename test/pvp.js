@@ -1,0 +1,54 @@
+// 对战码快照、奖励去重、资源隔离与存档回归。
+const assert = require('node:assert/strict');
+const { SG, DATA } = require('./load_node'); SG.init(DATA);
+require('../src/engine_pvp'); require('../src/saveio');
+function player(lv, name) {
+  const g = SG.Game.fresh(42), names = ['关羽','张飞','赵云','马超','黄忠','诸葛亮','刘备','曹操','孙权'];
+  for (const n of names) { g.addHero(n); Object.assign(g.hero(n), { lv, star: lv === 70 ? 5 : 1, hp: 1 }); }
+  const p = SG.PVP.state(g); p.name = name; p.cells = names;
+  return g;
+}
+function reject(fn) { assert.throws(fn); }
+(async () => {
+  const a = player(70, '测试甲'), b = player(1, '<测试乙>');
+  const pa = SG.PVP.state(a), pb = SG.PVP.state(b);
+  const code = SG.PVP.encode(SG.PVP.snapshot(b)), foe = SG.PVP.decode(code);
+  assert.equal(code, SG.PVP.encode(SG.PVP.snapshot(b)));
+  assert.deepEqual(SG.PVP.decode(code.slice(0, 5) + '\n ' + code.slice(5)), foe);
+  const key = await SG.PVP.identity(foe);
+  assert.equal(key, await SG.PVP.identity({ ...foe, name: '改名' }));
+  b.hero(pb.cells[0]).lv = 2;
+  assert.equal(foe.team[0].lv, 1);
+  assert.notEqual(key, await SG.PVP.identity(SG.PVP.snapshot(b)));
+  reject(() => SG.PVP.decode('SG1:xxx')); reject(() => SG.PVP.decode(code.slice(0, -10)));
+  reject(() => SG.PVP.validate({ ...foe, v: 99 }));
+  reject(() => SG.PVP.validate({ ...foe, team: foe.team.slice(1) }));
+  const bad = structuredClone(foe); bad.team[0].n = bad.team[1].n; reject(() => SG.PVP.validate(bad));
+  const badGear = structuredClone(foe); badGear.team[0].eq[0] = '__proto__'; reject(() => SG.PVP.validate(badGear));
+  const item = a.addItem(SG.D.EQROWS.find(e => e['槽'] === '武器').id);
+  const beforeGear = JSON.stringify(a.s.gear);
+  SG.PVP.equip(a, pa.cells[0], '武器', item.uid);
+  SG.PVP.equip(a, pa.cells[1], '武器', item.uid);
+  assert.equal(pa.gear[pa.cells[0]]['武器'], null);
+  assert.equal(JSON.stringify(a.s.gear), beforeGear);
+  const base = () => JSON.stringify(Object.fromEntries(Object.entries(a.s).filter(([k]) => k !== 'pvp')));
+  const before = base();
+  const r = await SG.PVP.fight(a, foe);
+  assert.equal(r.res.win, true); assert.equal(pa.ears.length, 1); assert.equal(pa.records[0].reward, '<测试乙>的耳朵');
+  assert.equal(base(), before);
+  const r2 = await SG.PVP.fight(a, { ...foe, name: '改名' });
+  assert.equal(r2.res.rounds, r.res.rounds); assert.equal(pa.ears.length, 1); assert.equal(pa.records[0].reward, null);
+  assert.deepEqual(r2.res.battles[0].teams.map(t => t.map(u => u.hp)), r.res.battles[0].teams.map(t => t.map(u => u.hp)));
+  await assert.rejects(() => SG.PVP.fight(a, SG.PVP.snapshot(a)));
+  const packed = await SG.SaveIO.encode(a.toJSON());
+  const restored = SG.Game.load(await SG.SaveIO.decode(packed));
+  assert.deepEqual(restored.s.pvp, pa); await SG.PVP.fight(restored, foe); assert.equal(restored.s.pvp.ears.length, 1);
+  const loser = player(1, '弱者'); await SG.PVP.fight(loser, SG.PVP.snapshot(a)); assert.equal(loser.s.pvp.ears.length, 0); assert.equal(loser.s.pvp.records[0].result, '败');
+  pa.records = Array(100).fill(pa.records[0]); await SG.PVP.fight(a, foe); assert.equal(pa.records.length, 100);
+  // 停战引擎模拟平局，验证不发奖和结果标识。
+  const Original = SG.Battle; SG.Battle = class extends Original { run() { return [-1, 30]; } };
+  const tie = await SG.PVP.fight(a, SG.PVP.snapshot(b)); assert.equal(tie.winTxt, '平'); assert.equal(pa.ears.length, 1); SG.Battle = Original;
+  const old = SG.Game.fresh(4); assert.equal(old.s.pvp, undefined); assert.equal(SG.PVP.state(old).cells.length, 9);
+  a.sell(item.uid); assert.equal(SG.PVP.snapshot(a).team[1].eq[0], null);
+  console.log('PVP 全过：码校验 / 固定快照与随机种子 / 单码奖励去重 / 配装隔离 / 资源不变 / 胜败平 / 存档往返 / 记录上限 / 旧档与卖装');
+})().catch(e => { console.error(e); process.exitCode = 1; });

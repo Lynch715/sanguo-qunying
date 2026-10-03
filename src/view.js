@@ -169,6 +169,7 @@ VIEWS.main = () => {
     ${(D0.crawl || {}).intro ? `<div class="btns" style="margin-top:20px"><div class="btn" data-a="crawl-intro">重看开篇</div>${s.seenEpi && (D0.crawl || {}).epilogue ? '<div class="btn" data-a="crawl-epi">重看尾声</div>' : ''}</div>` : ''}
     <div class="btns" style="margin-top:20px"><div class="btn" data-a="go" data-v="ach">功名簿</div><div class="btn" data-a="menu">存档导入导出</div>${SG.pwa && SG.pwa.can() ? '<div class="btn" data-a="pwa-install">装到桌面</div>' : ''}</div>
     <div class="btns"><div class="btn" data-a="to-title">回标题</div></div>
+    <div class="btns"><div class="btn" data-a="go" data-v="pvp">PVP 对战</div></div>
     <div class="contact" data-a="copy-wx">有 bug、有想法，加微信说一声：<b>lynchrrr</b><i>点一下复制</i></div>`;
 };
 function glog(t) { G.s.log = G.s.log || []; G.s.log.unshift(t); G.s.log = G.s.log.slice(0, 30); }
