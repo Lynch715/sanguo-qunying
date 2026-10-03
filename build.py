@@ -189,7 +189,7 @@ def main():
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>三国群英录 V{VERSION}</title>
 <meta name="theme-color" content="#f4efe4">
 <link rel="manifest" href="site.webmanifest">
