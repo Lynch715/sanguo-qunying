@@ -432,8 +432,8 @@ input,textarea,select{font-size:16px!important}
 .pvp-trophy .grow{min-width:0;overflow-wrap:anywhere}
 
 .pvp-trophy-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
-.pvp-trophy-grid .pvp-ear-cell{margin:0;padding:4px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.pvp-ear-cell .pvp-ear-icon{width:76%;height:76%;max-width:40px;max-height:40px;flex:none}
+.pvp-trophy-grid .pvp-ear-cell{margin:0;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer}
+.pvp-ear-cell .pvp-ear-icon{width:36px;height:36px;max-width:100%;flex:none}
 .pvp-ear-cell:focus-visible{outline:2px solid var(--zhu);outline-offset:2px}
 
 .pvp-trophies summary{list-style:none;cursor:pointer}
@@ -441,6 +441,8 @@ input,textarea,select{font-size:16px!important}
 .pvp-trophies .pvp-fold-open{display:none}
 .pvp-trophies[open] .pvp-fold-open{display:inline}
 .pvp-trophies[open] .pvp-fold-closed{display:none}
+
+.pvp-ear-name{width:100%;min-width:0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.7em;line-height:1.5;margin-top:2px;color:var(--ink-2)}
 
 </style>
 </head>
@@ -3991,7 +3993,7 @@ SG.VIEWS['pvp-challenge'] = () => `${title('开始对战')}<div class="small mut
 SG.VIEWS['pvp-preview'] = () => opponent ? `${title('对手阵容', esc(opponent.name))}${teamCards(opponent)}<div class="card small muted">以你当前保存的 PVP 阵容迎战。满兵上场，最多三十回合。</div><div class="btns"><div class="btn main" data-a="pvp-fight">开战</div><div class="btn" data-a="pvp-foe-detail">查看装备</div></div>${back}` : SG.VIEWS['pvp-challenge']();
 SG.VIEWS['pvp-records'] = () => {
   const s = p(), groups = SG.PVP.recordGroups(s);
-  return `<details class="pvp-trophies" id="pvp-trophies"${SG.V.pvpTrophiesOpen === false ? '' : ' open'}><summary class="sec"><h2>战利品</h2><span class="line"></span><span class="tp">${s.ears.length} 件 · <span class="pvp-fold-open">收起</span><span class="pvp-fold-closed">展开</span></span></summary>${s.ears.length ? `<div class="pvp-trophy-grid">${s.ears.map((e, i) => `<div class="card pvp-ear-cell" data-a="pvp-ear" data-i="${i}" role="button" tabindex="0" aria-label="查看耳朵战利品">${earIcon}</div>`).join('')}</div>` : '<div class="empty">尚未收获耳朵</div>'}
+  return `<details class="pvp-trophies" id="pvp-trophies"${SG.V.pvpTrophiesOpen === false ? '' : ' open'}><summary class="sec"><h2>战利品</h2><span class="line"></span><span class="tp">${s.ears.length} 件 · <span class="pvp-fold-open">收起</span><span class="pvp-fold-closed">展开</span></span></summary>${s.ears.length ? `<div class="pvp-trophy-grid">${s.ears.map((e, i) => `<div class="card pvp-ear-cell" data-a="pvp-ear" data-i="${i}" role="button" tabindex="0" aria-label="查看耳朵战利品" title="${esc(e.opponent.name)}">${earIcon}<div class="pvp-ear-name">${esc(e.opponent.name)}</div></div>`).join('')}</div>` : '<div class="empty">尚未收获耳朵</div>'}
     </details>${title('对战记录', '最近 100 场')}${groups.map(({record:r,index:i,entries}) => `<div class="card small" data-a="pvp-record" data-i="${i}"><div class="row"><b class="kai">${esc(r.opponent.name)}</b><span class="grow"></span><span style="color:var(--${r.result === '胜' ? 'zhu' : 'ink-2'})">${r.result}</span>　${r.rounds} 回合</div><div class="tiny muted">${esc(date(r.time))}${entries.length > 1 ? ' · 挑战 ' + entries.length + ' 次' : ''} · 点此查看详情</div></div>`).join('') || '<div class="empty">尚无对战记录</div>'}${back}`;
 };
 function selectHero(i) {
