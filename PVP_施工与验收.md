@@ -57,3 +57,5 @@
 - 内置 imagegen 生成工笔重彩耳朵，提示词存于 `assets/items/pvp_ear_prompt.txt`；正式图 `assets/items/pvp_ear.png` 256×256 RGBA，Alpha 范围 0～255。以 64px 显示在战利品卡片和详情中；带内容哈希，加入离线缓存。
 
 - 战利品改为三列方格，每格只显示耳朵，点击显示姓名、获得该战利品的对战时间和阵容。浏览器实操通过，截图 `test/artifacts/pvp_trophy_grid.png`。
+
+- 2026-10-04：战利品固定每行五格，图标最大 40px；标题支持收起/展开，本次会话切页保留状态。浏览器实测五列及折叠切页通过。

@@ -416,7 +416,13 @@ input,textarea,select{font-size:16px!important}
 .pvp-ear-icon{width:64px;height:64px;flex:0 0 64px;object-fit:contain}
 .pvp-trophy .grow{min-width:0;overflow-wrap:anywhere}
 
-.pvp-trophy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.pvp-trophy-grid .pvp-ear-cell{margin:0;aspect-ratio:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.pvp-ear-cell .pvp-ear-icon{width:76%;height:76%;max-width:88px;max-height:88px;flex:none}
+.pvp-trophy-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.pvp-trophy-grid .pvp-ear-cell{margin:0;padding:4px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pvp-ear-cell .pvp-ear-icon{width:76%;height:76%;max-width:40px;max-height:40px;flex:none}
 .pvp-ear-cell:focus-visible{outline:2px solid var(--zhu);outline-offset:2px}
+
+.pvp-trophies summary{list-style:none;cursor:pointer}
+.pvp-trophies summary::-webkit-details-marker{display:none}
+.pvp-trophies .pvp-fold-open{display:none}
+.pvp-trophies[open] .pvp-fold-open{display:inline}
+.pvp-trophies[open] .pvp-fold-closed{display:none}
