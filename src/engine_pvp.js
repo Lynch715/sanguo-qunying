@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const SG = globalThis.SG;
-const PREFIX = 'SGP1:', RULE = 1, LIMIT = 16000;
+const PREFIX = 'SGP2:', LEGACY = 'SGP1:', RULE = 1, LIMIT = 16000;
 const fail = m => { throw new Error(m); };
 const int = (v, a, b) => Number.isInteger(v) && v >= a && v <= b;
 function state(g) {
@@ -49,16 +49,34 @@ function snapshot(g) {
     }) };
   }) });
 }
-function encode(raw) {
-  const t = JSON.stringify(validate(raw)), bytes = new TextEncoder().encode(t);
-  return PREFIX + btoa(String.fromCharCode(...bytes));
+async function encode(raw) {
+  const bytes = new TextEncoder().encode(JSON.stringify(validate(raw)));
+  // 浏览器不支持压缩时仍可生成兼容旧格式的码。
+  if (typeof CompressionStream !== 'function') return LEGACY + btoa(String.fromCharCode(...bytes));
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  const packed = new Uint8Array(await new Response(stream).arrayBuffer());
+  return PREFIX + btoa(String.fromCharCode(...packed));
 }
-function decode(code) {
+async function decode(code) {
   if (typeof code !== 'string' || code.length > LIMIT * 2) fail('对战码过长');
   code = code.replace(/\s/g, '');
-  if (!code.startsWith(PREFIX) || code.length > LIMIT) fail('请粘贴完整的 PVP 对战码');
+  const zipped = code.startsWith(PREFIX);
+  if ((!zipped && !code.startsWith(LEGACY)) || code.length > LIMIT) fail('请粘贴完整的 PVP 对战码');
   try {
-    const bytes = Uint8Array.from(atob(code.slice(PREFIX.length)), c => c.charCodeAt(0));
+    let bytes = Uint8Array.from(atob(code.slice(PREFIX.length)), c => c.charCodeAt(0));
+    if (zipped) {
+      if (typeof DecompressionStream !== 'function') fail('浏览器不支持压缩对战码，请更新浏览器');
+      const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+      const chunks = []; let size = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read(); if (done) break;
+          size += value.length; if (size > LIMIT) fail('对战码资料过长'); chunks.push(value);
+        }
+      } finally { await reader.cancel().catch(() => {}); }
+      bytes = new Uint8Array(size); let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    }
     return validate(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
   } catch (e) { fail('对战码损坏或不兼容：' + e.message); }
 }

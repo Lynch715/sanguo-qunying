@@ -2539,7 +2539,7 @@ SG.SaveIO = { encode, decode, inspect, PREFIX };
 (function () {
 'use strict';
 const SG = globalThis.SG;
-const PREFIX = 'SGP1:', RULE = 1, LIMIT = 16000;
+const PREFIX = 'SGP2:', LEGACY = 'SGP1:', RULE = 1, LIMIT = 16000;
 const fail = m => { throw new Error(m); };
 const int = (v, a, b) => Number.isInteger(v) && v >= a && v <= b;
 function state(g) {
@@ -2586,16 +2586,34 @@ function snapshot(g) {
     }) };
   }) });
 }
-function encode(raw) {
-  const t = JSON.stringify(validate(raw)), bytes = new TextEncoder().encode(t);
-  return PREFIX + btoa(String.fromCharCode(...bytes));
+async function encode(raw) {
+  const bytes = new TextEncoder().encode(JSON.stringify(validate(raw)));
+  // 浏览器不支持压缩时仍可生成兼容旧格式的码。
+  if (typeof CompressionStream !== 'function') return LEGACY + btoa(String.fromCharCode(...bytes));
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  const packed = new Uint8Array(await new Response(stream).arrayBuffer());
+  return PREFIX + btoa(String.fromCharCode(...packed));
 }
-function decode(code) {
+async function decode(code) {
   if (typeof code !== 'string' || code.length > LIMIT * 2) fail('对战码过长');
   code = code.replace(/\s/g, '');
-  if (!code.startsWith(PREFIX) || code.length > LIMIT) fail('请粘贴完整的 PVP 对战码');
+  const zipped = code.startsWith(PREFIX);
+  if ((!zipped && !code.startsWith(LEGACY)) || code.length > LIMIT) fail('请粘贴完整的 PVP 对战码');
   try {
-    const bytes = Uint8Array.from(atob(code.slice(PREFIX.length)), c => c.charCodeAt(0));
+    let bytes = Uint8Array.from(atob(code.slice(PREFIX.length)), c => c.charCodeAt(0));
+    if (zipped) {
+      if (typeof DecompressionStream !== 'function') fail('浏览器不支持压缩对战码，请更新浏览器');
+      const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+      const chunks = []; let size = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read(); if (done) break;
+          size += value.length; if (size > LIMIT) fail('对战码资料过长'); chunks.push(value);
+        }
+      } finally { await reader.cancel().catch(() => {}); }
+      bytes = new Uint8Array(size); let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    }
     return validate(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
   } catch (e) { fail('对战码损坏或不兼容：' + e.message); }
 }
@@ -3882,7 +3900,7 @@ SG.VIEWS['pvp-form'] = () => {
     <div class="btns"><div class="btn sm" data-a="pvp-copy-team">复制闯关阵容与配装</div><div class="btn sm" data-a="pvp-auto">补满阵容</div></div>
     <div class="btns"><div class="btn main" data-a="pvp-code">生成对战码</div></div>${back}`;
 };
-SG.VIEWS['pvp-challenge'] = () => `${title('开始对战')}<div class="small muted">粘贴朋友的 PVP 对战码，先查看阵容再开战。</div><textarea id="pvp-import" class="pvp-code" placeholder="SGP1:…"></textarea><div class="btns"><div class="btn main" data-a="pvp-preview">查看对手</div></div>${back}`;
+SG.VIEWS['pvp-challenge'] = () => `${title('开始对战')}<div class="small muted">粘贴朋友的 PVP 对战码，先查看阵容再开战。</div><textarea id="pvp-import" class="pvp-code" placeholder="把对战码粘贴在这里"></textarea><div class="btns"><div class="btn main" data-a="pvp-preview">查看对手</div></div>${back}`;
 SG.VIEWS['pvp-preview'] = () => opponent ? `${title('对手阵容', esc(opponent.name))}${teamCards(opponent)}<div class="card small muted">以你当前保存的 PVP 阵容迎战。满兵上场，最多三十回合。</div><div class="btns"><div class="btn main" data-a="pvp-fight">开战</div><div class="btn" data-a="pvp-foe-detail">查看装备</div></div>${back}` : SG.VIEWS['pvp-challenge']();
 SG.VIEWS['pvp-records'] = () => {
   const s = p();
@@ -3921,13 +3939,13 @@ Object.assign(SG.ACT, {
   'pvp-wear': el => { try { SG.PVP.equip(g(), el.dataset.n, el.dataset.sl, el.dataset.uid === '' ? null : +el.dataset.uid); SG.save(); cellSheet(p().cells.indexOf(el.dataset.n)); SG.render(); } catch (e) { toast(e.message); } },
   'pvp-copy-team': () => U.ask('复制闯关阵容', '替换当前 PVP 站位和配装？', '复制', () => { const s = p(); s.cells = g().s.formation.slice(); s.gear = JSON.parse(JSON.stringify(g().s.gear)); commit(); toast('已复制'); }),
   'pvp-auto': () => { const s = p(), names = Object.keys(g().s.heroes).filter(n => !s.cells.includes(n)).sort((a, b) => g().power(b) - g().power(a)); for (let i = 0; i < 9; i++) if (!s.cells[i]) s.cells[i] = names.shift() || null; commit(); if (s.cells.includes(null)) toast('将领不足九人，先去招贤'); },
-  'pvp-code': () => {
+  'pvp-code': async () => {
     if (!nameSave(false)) return;
-    try { const code = SG.PVP.encode(SG.PVP.snapshot(g())); SG.save(); openModal(`<div class="shead">PVP 对战码<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(p().name)} · 生成时的阵容快照，发给朋友即可挑战。</div><textarea id="pvp-export" class="pvp-code" readonly>${esc(code)}</textarea><div class="tiny muted">${code.length} 字 · 培养或阵容变化后请重新生成</div><div class="btns"><div class="btn main" data-a="pvp-copy">复制对战码</div></div>`); } catch (e) { toast(e.message); }
+    try { const code = await SG.PVP.encode(SG.PVP.snapshot(g())); SG.save(); openModal(`<div class="shead">PVP 对战码<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(p().name)} · 生成时的阵容快照，发给朋友即可挑战。</div><textarea id="pvp-export" class="pvp-code" readonly>${esc(code)}</textarea><div class="tiny muted">${code.length} 字 · 培养或阵容变化后请重新生成</div><div class="btns"><div class="btn main" data-a="pvp-copy">复制对战码</div></div>`); } catch (e) { toast(e.message); }
   },
   'pvp-copy': async () => { const el = $('pvp-export'); el.select(); try { await navigator.clipboard.writeText(el.value); toast('对战码已复制'); } catch (e) { if (document.execCommand('copy')) toast('对战码已复制'); else toast('请长按文本框手动复制'); } },
   'pvp-challenge': () => { opponent = null; SG.go('pvp-challenge'); },
-  'pvp-preview': () => { try { opponent = SG.PVP.decode($('pvp-import').value); if (opponent.owner === p().owner) throw new Error('不能挑战自己的对战码'); SG.go('pvp-preview'); } catch (e) { toast(e.message); } },
+  'pvp-preview': async () => { try { opponent = await SG.PVP.decode($('pvp-import').value); if (opponent.owner === p().owner) throw new Error('不能挑战自己的对战码'); SG.go('pvp-preview'); } catch (e) { toast(e.message); } },
   'pvp-foe-detail': () => openModal(`<div class="shead">${esc(opponent.name)}<span class="x" data-a="close">关闭</span></div>${details(opponent)}`),
   'pvp-fight': async () => {
     if (busy || !opponent) return; busy = true;

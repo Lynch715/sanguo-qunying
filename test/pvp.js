@@ -12,15 +12,21 @@ function reject(fn) { assert.throws(fn); }
 (async () => {
   const a = player(70, '测试甲'), b = player(1, '<测试乙>');
   const pa = SG.PVP.state(a), pb = SG.PVP.state(b);
-  const code = SG.PVP.encode(SG.PVP.snapshot(b)), foe = SG.PVP.decode(code);
-  assert.equal(code, SG.PVP.encode(SG.PVP.snapshot(b)));
-  assert.deepEqual(SG.PVP.decode(code.slice(0, 5) + '\n ' + code.slice(5)), foe);
+  const code = await SG.PVP.encode(SG.PVP.snapshot(b)), foe = await SG.PVP.decode(code);
+  assert.equal(code, await SG.PVP.encode(SG.PVP.snapshot(b)));
+  assert.deepEqual(await SG.PVP.decode(code.slice(0, 5) + '\n ' + code.slice(5)), foe);
+  const legacy = 'SGP1:' + Buffer.from(JSON.stringify(foe), 'utf8').toString('base64');
+  assert.deepEqual(await SG.PVP.decode(legacy), foe);
+  assert.ok(code.length < legacy.length * .6);
+  console.log(`对战码压缩：${legacy.length} → ${code.length} 字，缩短 ${Math.round((1-code.length/legacy.length)*100)}%`);
+  const packedBomb = await new Response(new Blob(['x'.repeat(20000)]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+  await assert.rejects(() => SG.PVP.decode('SGP2:' + Buffer.from(packedBomb).toString('base64')));
   const key = await SG.PVP.identity(foe);
   assert.equal(key, await SG.PVP.identity({ ...foe, name: '改名' }));
   b.hero(pb.cells[0]).lv = 2;
   assert.equal(foe.team[0].lv, 1);
   assert.notEqual(key, await SG.PVP.identity(SG.PVP.snapshot(b)));
-  reject(() => SG.PVP.decode('SG1:xxx')); reject(() => SG.PVP.decode(code.slice(0, -10)));
+  await assert.rejects(() => SG.PVP.decode('SG1:xxx')); await assert.rejects(() => SG.PVP.decode(code.slice(0, -10)));
   reject(() => SG.PVP.validate({ ...foe, v: 99 }));
   reject(() => SG.PVP.validate({ ...foe, team: foe.team.slice(1) }));
   const bad = structuredClone(foe); bad.team[0].n = bad.team[1].n; reject(() => SG.PVP.validate(bad));

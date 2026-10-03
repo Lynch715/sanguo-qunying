@@ -3,7 +3,7 @@
    图片缓存优先：地址都带 ?v=内容哈希，换了图地址就变，缓存里有就一定是对的。
    VER 由 build.py 按版本号和页面哈希写入，改版旧缓存自动清掉。
    V0.7：图片单独放一个不随版本清的缓存（IMG），改版不用重下全部立绘；地址带哈希，换了图自然是新地址。 */
-const VER = 'sgqyl-0.8-f7371c41';
+const VER = 'sgqyl-0.8-0c7dceb3';
 const IMG = 'sgqyl-img';
 const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico', './assets/icons/icon-192.png', './assets/icons/icon-512.png'];
 
