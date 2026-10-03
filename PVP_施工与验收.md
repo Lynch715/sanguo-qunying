@@ -55,3 +55,5 @@
 - `node test/pvp.js` 增加同 key 两场合并为一组、不同 key 分组及原始记录不丢失检查，全过。
 - 应用内浏览器实测已有四场旧记录只显示一张卡片，点开有四场，各场详情可读；错误日志为空。截图 `test/artifacts/pvp_trophies.png`。
 - 内置 imagegen 生成工笔重彩耳朵，提示词存于 `assets/items/pvp_ear_prompt.txt`；正式图 `assets/items/pvp_ear.png` 256×256 RGBA，Alpha 范围 0～255。以 64px 显示在战利品卡片和详情中；带内容哈希，加入离线缓存。
+
+- 战利品改为三列方格，每格只显示耳朵，点击显示姓名、获得该战利品的对战时间和阵容。浏览器实操通过，截图 `test/artifacts/pvp_trophy_grid.png`。
