@@ -5,7 +5,7 @@
    V0.7：图片单独放一个不随版本清的缓存（IMG），改版不用重下全部立绘；地址带哈希，换了图自然是新地址。 */
 const VER = 'sgqyl-__VERSION__';
 const IMG = 'sgqyl-img';
-const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico', './assets/icons/icon-192.png', './assets/icons/icon-512.png'];
+const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/items/pvp_ear.png?v=b3bfa096'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VER).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

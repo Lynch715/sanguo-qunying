@@ -411,3 +411,7 @@ ol.lic li{margin:2px 0}
 
 /* iOS 聚焦放大：输入框字号低于 16px 时 Safari 会自动放大页面，这里统一抬到 16px */
 input,textarea,select{font-size:16px!important}
+
+.pvp-trophy{display:flex;align-items:center;gap:12px}
+.pvp-ear-icon{width:64px;height:64px;flex:0 0 64px;object-fit:contain}
+.pvp-trophy .grow{min-width:0;overflow-wrap:anywhere}

@@ -174,5 +174,15 @@ function equip(g, n, sl, uid) {
   }
   (p.gear[n] || (p.gear[n] = {}))[sl] = uid;
 }
-SG.PVP = { state, snapshot, validate, encode, decode, identity, fight, equip, PREFIX, RULE };
+// 仅合并列表展示，保留每一次实战和当时阵容，旧存档立即生效。
+function recordGroups(p) {
+  const map = new Map();
+  (p.records || []).forEach((record, index) => {
+    const key = record.key || JSON.stringify({ owner: record.opponent.owner, team: record.opponent.team });
+    if (!map.has(key)) map.set(key, { key, index, record, entries: [] });
+    map.get(key).entries.push({ index, record });
+  });
+  return [...map.values()];
+}
+SG.PVP = { state, snapshot, validate, encode, decode, identity, fight, equip, recordGroups, PREFIX, RULE };
 })();

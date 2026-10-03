@@ -427,6 +427,10 @@ ol.lic li{margin:2px 0}
 /* iOS 聚焦放大：输入框字号低于 16px 时 Safari 会自动放大页面，这里统一抬到 16px */
 input,textarea,select{font-size:16px!important}
 
+.pvp-trophy{display:flex;align-items:center;gap:12px}
+.pvp-ear-icon{width:64px;height:64px;flex:0 0 64px;object-fit:contain}
+.pvp-trophy .grow{min-width:0;overflow-wrap:anywhere}
+
 </style>
 </head>
 <body>
@@ -2715,7 +2719,17 @@ function equip(g, n, sl, uid) {
   }
   (p.gear[n] || (p.gear[n] = {}))[sl] = uid;
 }
-SG.PVP = { state, snapshot, validate, encode, decode, identity, fight, equip, PREFIX, RULE };
+// 仅合并列表展示，保留每一次实战和当时阵容，旧存档立即生效。
+function recordGroups(p) {
+  const map = new Map();
+  (p.records || []).forEach((record, index) => {
+    const key = record.key || JSON.stringify({ owner: record.opponent.owner, team: record.opponent.team });
+    if (!map.has(key)) map.set(key, { key, index, record, entries: [] });
+    map.get(key).entries.push({ index, record });
+  });
+  return [...map.values()];
+}
+SG.PVP = { state, snapshot, validate, encode, decode, identity, fight, equip, recordGroups, PREFIX, RULE };
 })();
 
 /* ---- view.js ---- */
@@ -3931,6 +3945,7 @@ const SG = window.SG, U = SG.ui, { esc, por, num, stars, TSEAL, eqSeal, $, toast
 const g = () => SG.getGame(), p = () => SG.PVP.state(g());
 const title = (text, sub = '') => `<div class="sec"><h2>${text}</h2><span class="line"></span><span class="tp">${sub}</span></div>`;
 const back = `<div class="btns"><div class="btn" data-a="go" data-v="pvp">回 PVP</div></div>`;
+const earIcon = '<img class="pvp-ear-icon" src="assets/items/pvp_ear.png?v=b3bfa096" alt="耳朵战利品" width="64" height="64">';
 const date = t => new Date(t).toLocaleString('zh-CN', { hour12: false });
 let opponent = null, busy = false;
 function commit() { SG.save(); SG.render(); }
@@ -3964,9 +3979,9 @@ SG.VIEWS['pvp-form'] = () => {
 SG.VIEWS['pvp-challenge'] = () => `${title('开始对战')}<div class="small muted">粘贴朋友的 PVP 对战码，先查看阵容再开战。</div><textarea id="pvp-import" class="pvp-code" placeholder="把对战码粘贴在这里"></textarea><div class="btns"><div class="btn main" data-a="pvp-preview">查看对手</div></div>${back}`;
 SG.VIEWS['pvp-preview'] = () => opponent ? `${title('对手阵容', esc(opponent.name))}${teamCards(opponent)}<div class="card small muted">以你当前保存的 PVP 阵容迎战。满兵上场，最多三十回合。</div><div class="btns"><div class="btn main" data-a="pvp-fight">开战</div><div class="btn" data-a="pvp-foe-detail">查看装备</div></div>${back}` : SG.VIEWS['pvp-challenge']();
 SG.VIEWS['pvp-records'] = () => {
-  const s = p();
-  return `${title('战利品', s.ears.length + ' 件')}${s.ears.map((e, i) => `<div class="card small" data-a="pvp-ear" data-i="${i}"><b class="kai">${esc(e.name)}</b><div class="tiny muted">${esc(date(e.time))} · 点此查看对手</div></div>`).join('') || '<div class="empty">尚未收获耳朵</div>'}
-    ${title('对战记录', '最近 100 场')}${s.records.map((r, i) => `<div class="card small" data-a="pvp-record" data-i="${i}"><div class="row"><b class="kai">${esc(r.opponent.name)}</b><span class="grow"></span><span style="color:var(--${r.result === '胜' ? 'zhu' : 'ink-2'})">${r.result}</span>　${r.rounds} 回合</div><div class="tiny muted">${esc(date(r.time))}${r.reward ? ' · ' + esc(r.reward) : ''} · 点此查看详情</div></div>`).join('') || '<div class="empty">尚无对战记录</div>'}${back}`;
+  const s = p(), groups = SG.PVP.recordGroups(s);
+  return `${title('战利品', s.ears.length + ' 件')}${s.ears.map((e, i) => `<div class="card small pvp-trophy" data-a="pvp-ear" data-i="${i}">${earIcon}<div class="grow"><b class="kai">${esc(e.name)}</b><div class="tiny muted">${esc(date(e.time))} · 点此查看对手</div></div></div>`).join('') || '<div class="empty">尚未收获耳朵</div>'}
+    ${title('对战记录', '最近 100 场')}${groups.map(({record:r,index:i,entries}) => `<div class="card small" data-a="pvp-record" data-i="${i}"><div class="row"><b class="kai">${esc(r.opponent.name)}</b><span class="grow"></span><span style="color:var(--${r.result === '胜' ? 'zhu' : 'ink-2'})">${r.result}</span>　${r.rounds} 回合</div><div class="tiny muted">${esc(date(r.time))}${entries.length > 1 ? ' · 挑战 ' + entries.length + ' 次' : ''} · 点此查看详情</div></div>`).join('') || '<div class="empty">尚无对战记录</div>'}${back}`;
 };
 function selectHero(i) {
   openModal(`<div class="shead">选择将领<span class="x" data-a="close">关闭</span></div><div class="small muted">点击阵上将领可与这个位置交换。</div><div class="hgrid">${Object.keys(g().s.heroes).sort((a, b) => g().power(b) - g().power(a)).map(n => `<div class="hc tb-${SG.D.H[n]['品阶']}" data-a="pvp-pick" data-i="${i}" data-n="${esc(n)}">${por(n)}<div class="nm">${esc(n)}</div><div class="meta">Lv.${g().hero(n).lv} ${p().cells.includes(n) ? '阵上' : ''}</div></div>`).join('')}</div>`);
@@ -4013,8 +4028,13 @@ Object.assign(SG.ACT, {
     const game = g();
     try { const out = await SG.PVP.fight(game, opponent); if (g() !== game) return; out.note = esc(out.note); SG.save(); SG.Play.begin(out); } catch (e) { toast(e.message); } finally { busy = false; }
   },
-  'pvp-record': el => { const r = p().records[+el.dataset.i]; openModal(`<div class="shead">${esc(r.opponent.name)} · ${r.result}<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(date(r.time))} · ${r.rounds} 回合${r.reward ? ' · ' + esc(r.reward) : ''}</div>${title('我方', esc(r.mine.name))}${details(r.mine)}${title('对方', esc(r.opponent.name))}${details(r.opponent)}`); },
-  'pvp-ear': el => { const e = p().ears[+el.dataset.i]; openModal(`<div class="shead">${esc(e.name)}<span class="x" data-a="close">关闭</span></div><div class="small muted">获得于 ${esc(date(e.time))}</div>${details(e.opponent)}`); },
+  'pvp-record': el => {
+    const group = SG.PVP.recordGroups(p()).find(x => x.index === +el.dataset.i); if (!group) return;
+    if (group.entries.length === 1) { SG.ACT['pvp-record-detail'](el); return; }
+    openModal(`<div class="shead">${esc(group.record.opponent.name)}<span class="x" data-a="close">关闭</span></div><div class="small muted">挑战 ${group.entries.length} 次</div>${group.entries.map(({record:r,index:i}) => `<div class="card small" data-a="pvp-record-detail" data-i="${i}"><div class="row"><b class="kai">${r.result}</b><span class="grow"></span>${r.rounds} 回合</div><div class="tiny muted">${esc(date(r.time))}${r.reward ? ' · ' + esc(r.reward) : ''} · 查看本场阵容</div></div>`).join('')}`);
+  },
+  'pvp-record-detail': el => { const r = p().records[+el.dataset.i]; openModal(`<div class="shead">${esc(r.opponent.name)} · ${r.result}<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(date(r.time))} · ${r.rounds} 回合${r.reward ? ' · ' + esc(r.reward) : ''}</div>${title('我方', esc(r.mine.name))}${details(r.mine)}${title('对方', esc(r.opponent.name))}${details(r.opponent)}`); },
+  'pvp-ear': el => { const e = p().ears[+el.dataset.i]; openModal(`<div class="shead">${esc(e.name)}<span class="x" data-a="close">关闭</span></div><div class="pvp-trophy">${earIcon}<div class="small muted">获得于 ${esc(date(e.time))}</div></div>${details(e.opponent)}`); },
 });
 // 离开输入框时保存合法姓名，避免编辑后切换页面丢失。
 document.addEventListener('change', e => { if (e.target.id === 'pvp-name') nameSave(false); });

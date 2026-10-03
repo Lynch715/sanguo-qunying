@@ -70,6 +70,8 @@ function reject(fn) { assert.throws(fn); }
   assert.equal(r.res.win, true); assert.equal(pa.ears.length, 1); assert.equal(pa.records[0].reward, '<测试乙>的耳朵');
   assert.equal(base(), before);
   const r2 = await SG.PVP.fight(a, { ...foe, name: '改名' });
+  const grouped = SG.PVP.recordGroups(pa); assert.equal(grouped.length, 1); assert.equal(grouped[0].entries.length, 2); assert.equal(pa.records.length, 2);
+  const distinct = structuredClone(pa); distinct.records.push({...distinct.records[0], key:'another-snapshot'}); assert.equal(SG.PVP.recordGroups(distinct).length, 2);
   assert.equal(r2.res.rounds, r.res.rounds); assert.equal(pa.ears.length, 1); assert.equal(pa.records[0].reward, null);
   assert.deepEqual(r2.res.battles[0].teams.map(t => t.map(u => u.hp)), r.res.battles[0].teams.map(t => t.map(u => u.hp)));
   await assert.rejects(() => SG.PVP.fight(a, SG.PVP.snapshot(a)));
