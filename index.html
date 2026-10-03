@@ -173,15 +173,15 @@ h1,h2,h3,.kai{font-family:var(--f-title);font-weight:400}
 .rowlab{font-size:.72em;color:var(--ink-3);text-align:center;margin:2px 0}
 
 /* 战斗 */
-.bf{--cw:clamp(48px,calc((100dvh - 330px) / 8.3),92px);display:flex;flex-direction:column;align-items:center;margin:4px auto 0}
+.bf{--cw:min(clamp(56px,calc((100dvh - 250px) / 7.7),110px),calc((100vw - 40px) / 3));display:flex;flex-direction:column;align-items:center;margin:4px auto 0}
 .bgrid{display:grid;grid-template-columns:repeat(3,var(--cw));gap:4px}
-.bf.side{--cw:clamp(56px,calc((100dvh - 300px) / 4.4),120px);flex-direction:row;justify-content:center;gap:18px}
+.bf.side{--cw:min(clamp(64px,calc((100dvh - 230px) / 4),140px),calc((100vw - 100px) / 6));flex-direction:row;justify-content:center;gap:18px}
 .bf.side .vs{flex-direction:column}
-.bcell{position:relative;background:var(--card);border:1px solid var(--paper-3);border-radius:4px;overflow:visible;height:calc(var(--cw) * 1.333 + 16px)}
+.bcell{position:relative;background:var(--card);border:1px solid var(--paper-3);border-radius:4px;overflow:visible;height:calc(var(--cw) * 1.333 + 20px)}
 .bcell.void{background:transparent;border:1px dashed var(--paper-3)}
 .bcell .por{border-radius:3px 3px 0 0}
 .bcell .por .ph{font-size:.8em}
-.bcell .bn{font-size:.64em;line-height:1.3;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--f-title);padding:0 2px}
+.bcell .bn{font-size:.7em;line-height:1.35;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--f-title);padding:0 2px}
 .bcell .bar{margin:0 3px;height:4px}
 .bcell .sts{position:absolute;top:2px;left:2px;right:2px;display:flex;flex-wrap:wrap;gap:1px;z-index:3}
 .bcell .sts span{font-size:.58em;background:rgba(43,37,32,.72);color:#fff;border-radius:2px;padding:0 2px;line-height:1.35}
