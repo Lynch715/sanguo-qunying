@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const SG = globalThis.SG;
-const PREFIX = 'SGP2:', LEGACY = 'SGP1:', RULE = 1, LIMIT = 16000;
+const PREFIX = 'SGP3:', ZIP = 'SGP2:', LEGACY = 'SGP1:', RULE = 1, LIMIT = 16000;
 const fail = m => { throw new Error(m); };
 const int = (v, a, b) => Number.isInteger(v) && v >= a && v <= b;
 function state(g) {
@@ -49,21 +49,78 @@ function snapshot(g) {
     }) };
   }) });
 }
+// SGP3 用冻结字典和位字段保存资料，不依赖 JSON 键名或中文将领装备名。
+const CAT = SG.PVP_CATALOG;
+const widths = CAT.gear.map(ids => Math.ceil(Math.log2(ids.length + 1)));
+const to64 = bytes => btoa(String.fromCharCode(...bytes));
+async function checksum(bytes) { return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)).slice(0, 4); }
+async function compact(s) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s.owner)) return null;
+  if (s.team.some(h => !CAT.heroes.includes(h.n) || h.eq.some((id, i) => id !== null && !CAT.gear[i].includes(id)))) return null;
+  const name = new TextEncoder().encode(s.name);
+  const denseBits = 9 * widths.reduce((a, b) => a + b, 0);
+  const sparseBits = 36 + s.team.reduce((a, h) => a + h.eq.reduce((n, id, i) => n + (id === null ? 0 : widths[i]), 0), 0);
+  const sparse = sparseBits < denseBits;
+  const bits = [];
+  const put = (value, width) => { for (let i = width - 1; i >= 0; i--) bits.push((value >>> i) & 1); };
+  for (const h of s.team) {
+    put(CAT.heroes.indexOf(h.n), 9); put(h.lv - 1, 7); put(h.star - 1, 3);
+    h.eq.forEach((id, i) => {
+      if (sparse) { put(id === null ? 0 : 1, 1); if (id !== null) put(CAT.gear[i].indexOf(id), widths[i]); }
+      else put(id === null ? 0 : CAT.gear[i].indexOf(id) + 1, widths[i]);
+    });
+  }
+  const bytes = new Uint8Array(3 + 16 + name.length + Math.ceil(bits.length / 8));
+  bytes.set([CAT.v, sparse ? 1 : 0, name.length]);
+  const hex = s.owner.replace(/-/g, '');
+  for (let i = 0; i < 16; i++) bytes[3 + i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  bytes.set(name, 19);
+  bits.forEach((bit, i) => { bytes[19 + name.length + (i >>> 3)] |= bit << (7 - (i % 8)); });
+  const signed = new Uint8Array(bytes.length + 4); signed.set(bytes); signed.set(await checksum(bytes), bytes.length);
+  return PREFIX + to64(signed);
+}
+async function expand(bytes) {
+  if (bytes.length < 24 || bytes.length > 137) fail('短码长度无效');
+  const body = bytes.slice(0, -4), sum = await checksum(body);
+  if (!sum.every((b, i) => b === bytes[bytes.length - 4 + i])) fail('短码不完整或已损坏');
+  if (body[0] !== CAT.v || body[1] > 1 || body[2] < 1 || body[2] > 64) fail('短码版本或姓名无效');
+  const hex = Array.from(body.slice(3, 19), b => b.toString(16).padStart(2, '0')).join('');
+  const owner = [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
+  const name = new TextDecoder('utf-8', { fatal: true }).decode(body.slice(19, 19 + body[2]));
+  let pos = (19 + body[2]) * 8;
+  const get = width => {
+    if (pos + width > body.length * 8) fail('短码阵容不全');
+    let value = 0; for (let i = 0; i < width; i++, pos++) value = (value << 1) | ((body[pos >>> 3] >>> (7 - pos % 8)) & 1);
+    return value;
+  };
+  const team = Array.from({ length: 9 }, () => {
+    const n = CAT.heroes[get(9)], lv = get(7) + 1, star = get(3) + 1;
+    const eq = CAT.gear.map((ids, i) => {
+      const index = body[1] ? (get(1) ? get(widths[i]) + 1 : 0) : get(widths[i]);
+      if (index > ids.length) fail('短码装备编号无效');
+      return index === 0 ? null : ids[index - 1];
+    });
+    return { n, lv, star, eq };
+  });
+  if (Math.ceil(pos / 8) !== body.length || (pos % 8 && (body[body.length - 1] & ((1 << (8 - pos % 8)) - 1)))) fail('短码含多余资料');
+  return validate({ kind: 'pvp', v: RULE, owner, name, team });
+}
 async function encode(raw) {
-  const bytes = new TextEncoder().encode(JSON.stringify(validate(raw)));
-  // 浏览器不支持压缩时仍可生成兼容旧格式的码。
-  if (typeof CompressionStream !== 'function') return LEGACY + btoa(String.fromCharCode(...bytes));
+  const s = validate(raw), short = await compact(s); if (short) return short;
+  // 非 UUID 旧身份或字典外新将领装备继续使用兼容的压缩格式。
+  const bytes = new TextEncoder().encode(JSON.stringify(s));
+  if (typeof CompressionStream !== 'function') return LEGACY + to64(bytes);
   const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-  const packed = new Uint8Array(await new Response(stream).arrayBuffer());
-  return PREFIX + btoa(String.fromCharCode(...packed));
+  return ZIP + to64(new Uint8Array(await new Response(stream).arrayBuffer()));
 }
 async function decode(code) {
   if (typeof code !== 'string' || code.length > LIMIT * 2) fail('对战码过长');
-  code = code.replace(/\s/g, '');
-  const zipped = code.startsWith(PREFIX);
-  if ((!zipped && !code.startsWith(LEGACY)) || code.length > LIMIT) fail('请粘贴完整的 PVP 对战码');
+  code = code.replace(/\s/g, '').replace(/^sgp([123]):/i, (_, v) => 'SGP' + v + ':');
+  const short = code.startsWith(PREFIX), zipped = code.startsWith(ZIP);
+  if ((!short && !zipped && !code.startsWith(LEGACY)) || code.length > LIMIT) fail('请粘贴完整的 PVP 对战码');
   try {
     let bytes = Uint8Array.from(atob(code.slice(PREFIX.length)), c => c.charCodeAt(0));
+    if (short) return await expand(bytes);
     if (zipped) {
       if (typeof DecompressionStream !== 'function') fail('浏览器不支持压缩对战码，请更新浏览器');
       const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();

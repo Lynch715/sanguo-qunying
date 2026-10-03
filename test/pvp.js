@@ -1,7 +1,7 @@
 // 对战码快照、奖励去重、资源隔离与存档回归。
 const assert = require('node:assert/strict');
 const { SG, DATA } = require('./load_node'); SG.init(DATA);
-require('../src/engine_pvp'); require('../src/saveio');
+require('../src/pvp_catalog'); require('../src/engine_pvp'); require('../src/saveio');
 function player(lv, name) {
   const g = SG.Game.fresh(42), names = ['关羽','张飞','赵云','马超','黄忠','诸葛亮','刘备','曹操','孙权'];
   for (const n of names) { g.addHero(n); Object.assign(g.hero(n), { lv, star: lv === 70 ? 5 : 1, hp: 1 }); }
@@ -17,6 +17,33 @@ function reject(fn) { assert.throws(fn); }
   assert.deepEqual(await SG.PVP.decode(code.slice(0, 5) + '\n ' + code.slice(5)), foe);
   const legacy = 'SGP1:' + Buffer.from(JSON.stringify(foe), 'utf8').toString('base64');
   assert.deepEqual(await SG.PVP.decode(legacy), foe);
+  for (const sample of [code, legacy]) assert.deepEqual(await SG.PVP.decode(sample.slice(0,5).toLowerCase() + sample.slice(5)), foe);
+  const zip = 'SGP2:' + require('node:zlib').deflateRawSync(Buffer.from(JSON.stringify(foe))).toString('base64');
+  assert.deepEqual(await SG.PVP.decode(zip), foe);
+  assert.deepEqual(await SG.PVP.decode(zip.slice(0,5).toLowerCase() + zip.slice(5)), foe);
+  const userCode = 'sgp3:AQAPbbMk5St5QAG9NyOEdsOd1+Wkp+iAs+acteWbvuWbvgE7iZxxwAu4lbbbAbuJ3XXQ+7kPnnkCu4pfffAjuKHnngA7iRppoDO4qgggA7uK4YYQODy2UQ==';
+  assert.equal((await SG.PVP.decode(userCode)).name, '大耳朵图图');
+  assert.ok(code.length <= 100);
+  // 最长 Unicode 姓名、九人全装、各不相同的培养值，无损且小于 200 字。
+  const full = structuredClone(foe); full.name = '😀'.repeat(16);
+  full.team.forEach((h, i) => { h.lv = 70 - i; h.star = i % 5 + 1; h.eq = SG.PVP_CATALOG.gear.map(ids => ids[(i * 7) % ids.length]); });
+  const fullCode = await SG.PVP.encode(full);
+  assert.deepEqual(await SG.PVP.decode(fullCode), full);
+  assert.ok(fullCode.length <= 200);
+  console.log(`全装九人 + 16 个 emoji 姓名：${fullCode.length} 字`);
+  const corrupt = Buffer.from(code.slice(5), 'base64'); corrupt[20] ^= 1;
+  await assert.rejects(() => SG.PVP.decode('SGP3:' + corrupt.toString('base64')));
+  // 混合稀疏/满装、Unicode 姓名与各档培养，检验位字段跨字节往返。
+  const rng = SG.makeRng(117);
+  for (let t = 0; t < 80; t++) {
+    const varied = structuredClone(foe); varied.name = t % 2 ? '短码测试' : '😀'.repeat(16);
+    const picks = rng.sample(SG.PVP_CATALOG.heroes, 9);
+    varied.team.forEach((h, i) => { h.n = picks[i]; h.lv = rng.randint(1,70); h.star = rng.randint(1,5); h.eq = SG.PVP_CATALOG.gear.map(ids => rng.random() < t / 80 ? rng.choice(ids) : null); });
+    const short = await SG.PVP.encode(varied); assert.ok(short.length <= 200); assert.deepEqual(await SG.PVP.decode(short), varied);
+  }
+  const custom = {...foe, owner: 'oldcustomidentity1234'};
+  assert.deepEqual(await SG.PVP.decode(await SG.PVP.encode(custom)), custom);
+
   assert.ok(code.length < legacy.length * .6);
   console.log(`对战码压缩：${legacy.length} → ${code.length} 字，缩短 ${Math.round((1-code.length/legacy.length)*100)}%`);
   const packedBomb = await new Response(new Blob(['x'.repeat(20000)]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
