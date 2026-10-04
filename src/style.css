@@ -450,3 +450,5 @@ details.bio{padding:0;border:1px solid var(--ink-4);border-radius:6px;margin:12p
 .bio-toggle:focus-visible{outline:2px solid var(--zhu);outline-offset:-3px}
 .god-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(min-width:800px){.god-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.god-card-status{min-height:3.2em;line-height:1.6}.god-panel .btns{flex-wrap:wrap}

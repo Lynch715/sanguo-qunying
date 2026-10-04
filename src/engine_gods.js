@@ -257,7 +257,7 @@ function skill(n){
 function apply(u){const m=DATA[u.name];if(!m)throw Error('此人物尚无神形态');u.form='god';u.label='神·'+u.name;u.base[m.primary]*=1.08;u.base[m.secondary]*=1.04;u.skill=skill(u.name);return u;}
 function check(g,names){return names.filter(n=>n&&g.hero(n)?.form==='god').length<=1;}
 function godState(g){const s=g.s.gods||(g.s.gods={heroes:{},trials:{}});s.heroes=s.heroes||{};s.trials=s.trials||{};return s;}
-function progress(g,n){if(!DATA[n])throw Error('此人物尚无神形态');const s=godState(g);return s.heroes[n]||(s.heroes[n]={souls:0,qualified:false,awakened:false});}
+function progress(g,n){if(!DATA[n])throw Error('此人物尚无神形态');const s=godState(g);return s.heroes[n]||(s.heroes[n]={qualified:false,awakened:false});}
 function dayKey(date=new Date()){return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');}
 function weekKey(date=new Date()){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()-(d.getDay()+6)%7);return dayKey(d);}
 SG.God={DATA,apply,skill,cleanse,check,progress,dayKey,weekKey,context,
@@ -266,7 +266,7 @@ SG.God={DATA,apply,skill,cleanse,check,progress,dayKey,weekKey,context,
 };
 const P=SG.Game.prototype;
 P.godProgress=function(n){return progress(this,n);};
-P.awaken=function(n){const h=this.hero(n),p=progress(this,n);if(this.kind==='conquest'||this.s.cycle<2)return {err:'二周目闯关开放觉醒'};if(p.awakened)return {err:'已觉醒'};if(!h||h.lv<70||h.star<5||!p.qualified)return {err:'需要70级、5星并通关所属封神试炼'};if(p.souls<300||this.s.gold<1000000)return {err:'需要300专属神魂和100万金币'};p.souls-=300;this.s.gold-=1000000;p.awakened=true;return {ok:true};};
+P.awaken=function(n){const h=this.hero(n),p=progress(this,n);if(this.kind==='conquest'||this.s.cycle<2)return {err:'二周目闯关开放觉醒'};if(p.awakened)return {err:'已觉醒'};if(!h||h.lv<70||h.star<5||!p.qualified)return {err:'需要70级、5星并通关所属封神试炼'};if(this.s.gold<1000000)return {err:'需要100万金币'};this.s.gold-=1000000;p.awakened=true;return {ok:true};};
 P.setGodForm=function(n,form){const h=this.hero(n);if(!h||!DATA[n]||!['normal','god'].includes(form))return {err:'形态无效'};if(form==='god'&&!progress(this,n).awakened)return {err:'尚未觉醒'};if(form==='god'){
  const formations=[this.s.formation,this.s.pvp?.cells].filter(Boolean);if(formations.some(F=>F.includes(n)&&F.some(x=>x!==n&&this.hero(x)?.form==='god')))return {err:'每队最多上阵一位神将，请先调整阵容'};
  }h.form=form;return {ok:true};};
@@ -280,9 +280,8 @@ P.godTrial=function(n,cells,opt={}){
  const faction=DATA[n].faction,foes=Object.keys(DATA).filter(x=>DATA[x].faction===faction);
  const A=names.map(x=>this.unitOf(x,true)),B=foes.map(x=>SG.mkHeroUnit(x,75,5,[],null,x===n?'god':'normal'));
  SG.setBattleSeed(opt.seed??Math.floor(Math.random()*2**31));const b=new SG.Battle(A,B,!opt.quick);A.forEach((u,i)=>u.idx=cells.indexOf(names[i]));
- const [w,rounds]=b.run(30);let souls=0,first=false;const p=progress(this,n),s=godState(this),date=new Date(),day=dayKey(date),week=weekKey(date);
- const t=s.trials[n]||(s.trials[n]={first:false,day:'',week:'',weekly:0});
- if(w===0){p.qualified=true;if(!t.first){t.first=true;first=true;souls+=60;}if(t.week!==week){t.week=week;t.weekly=0;}if(t.day!==day&&t.weekly<105){const reward=Math.min(15,105-t.weekly);souls+=reward;t.weekly+=reward;t.day=day;}p.souls+=souls;}
- return {res:{win:w===0,rounds,battles:[b]},rew:{},title:'封神试炼 · '+n,winTxt:w===0?'试炼通过':w===1?'试炼未过':'试炼未过',note:w===0?`专属神魂 +${souls}${first?'（首通60）':''}；本周日常奖励 ${t.weekly}/105`:'试炼失败，不扣金币、神魂或兵力。',back:'gods',backTxt:'回封神试炼'};
+ const [w,rounds]=b.run(30);const p=progress(this,n),already=p.qualified;
+ if(w===0)p.qualified=true;
+ return {res:{win:w===0,rounds,battles:[b]},rew:{},title:'封神试炼 · '+n,winTxt:w===0?'试炼通过':'试炼未过',note:w===0?(already?'已取得觉醒资格，可前往武将详情页觉醒。':'已取得觉醒资格，可消耗100万金币觉醒。'):'试炼失败，不扣金币或兵力。',back:'gods',backTxt:'回封神试炼'};
 };
 })();
