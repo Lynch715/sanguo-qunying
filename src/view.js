@@ -18,7 +18,7 @@ const ESEAL = ['凡', '良', '精', '珍', '神'];
 const eqTi = row => row['归属'] ? 5 : SG.EQ_TIERS.indexOf(row['档']);
 const eqSeal = row => `<span class="gseal eb${eqTi(row)}">${row['归属'] ? '专' : ESEAL[eqTi(row)]}</span>`;
 const facTag = f => `<span class="fac f-${f}">${f === '无' ? '群' : f}</span>`;
-const stars = n => '★'.repeat(n) + '<span style="opacity:.3">' + '★'.repeat(Math.max(0, 5 - n)) + '</span>';
+const stars = (n, cap = G ? G.maxStar() : 5) => '★'.repeat(n) + '<span style="opacity:.3">' + '★'.repeat(Math.max(0, cap - n)) + '</span>';
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 function toast(msg) {
   const t = $('toast'); if (!t) return;
@@ -37,7 +37,8 @@ function ask(title, body, yes, fn) {
 // 进游戏后空闲时把中档图挨个预取一遍（离线缓存由 service worker 存住），手里的人再留一份解码好的在内存里
 const PORT_OK = new Set(), PORT_HOLD = [];
 document.addEventListener('load', e => { const t = e.target; if (t && t.tagName === 'IMG' && t.closest('.por')) PORT_OK.add(t.getAttribute('src')); }, true);
-function por(name, size = 'm', extra = '') {
+function por(name, size = 'm', extra = '', form) {
+  name = SG.God ? SG.God.portrait(name,G,form) : name;
   const p = (D0.portraits || {})[name];
   const mob = !D.H[name];
   const src = p && (p[size] || p.l);
@@ -159,11 +160,12 @@ VIEWS.main = () => {
   const cleared = Object.keys(s.cleared).length;
   const title = s.title || store.get('sgqyl_title');
   const pend = G.achPending().length;
-  return `<div class="banner"><div class="bt">三国群英录</div><div class="bs">九宫对阵　三百五十八人${s.cycle > 1 ? `　${s.cycle} 周目` : ''}</div>${title ? `<div class="btitle">「${esc(title)}」</div>` : ''}</div>
+  return `<div class="banner"><div class="bt">三国群英录</div>${s.cycle > 1 ? `<div class="bs">第 ${s.cycle} 周目</div>` : ''}${title ? `<div class="btitle">「${esc(title)}」</div>` : ''}</div>
     <div class="stat3"><div><b>${owned}</b><i>已收将</i></div><div><b>${s.formation.filter(Boolean).length}/9</b><i>上阵</i></div><div><b>${cleared}</b><i>已通关</i></div></div>
     ${gd ? `<div class="nextup" data-a="${gd.act === 'stage' ? 'stage' : 'go'}" data-v="${gd.v}" data-id="${gd.v}"><div class="k">下一步</div><div class="v">${esc(gd.txt)}</div><div class="m">${esc(gd.sub)}</div></div>` : ''}
     ${pend ? `<div class="nextup ach-up" data-a="go" data-v="ach"><div class="k">功名</div><div class="v">待领 ${pend} 条</div><div class="m">点进功名簿领赏</div></div>` : ''}
     ${txPanel()}
+    <div class="btns"><div class="btn" data-a="go" data-v="gods">封神试炼 · 二十神将</div></div>
     <div class="btns"><div class="btn main" data-a="go" data-v="stages">出　征</div><div class="btn" data-a="go" data-v="form">布　阵</div></div>
     ${(s.log || []).length ? `<div class="sec"><h2>最　近</h2><span class="line"></span></div><div class="card small logbox">${s.log.slice(0, 8).map(l => `<div>${esc(l)}</div>`).join('')}</div>` : ''}
     ${(D0.crawl || {}).intro ? `<div class="btns" style="margin-top:20px"><div class="btn" data-a="crawl-intro">重看开篇</div>${s.seenEpi && (D0.crawl || {}).epilogue ? '<div class="btn" data-a="crawl-epi">重看尾声</div>' : ''}</div>` : ''}
@@ -268,7 +270,7 @@ function chapCard(c) {
 }
 VIEWS.stages = () => {
   let h = '';
-  if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：敌方等级、星级整体上调，杂兵换成名将。二周目四维 ×1.5、兵力 ×1.6、金币 ×0.7；三周目起四维 ×2、兵力 ×2.2、金币 ×0.5，首通黄金减少。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
+  if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：敌方等级、星级整体上调，杂兵换成名将。将领等级上限 100，一周目最高 5 星，二周目起最高 7 星。二周目四维 ×1.5、兵力 ×1.6、金币 ×0.7；三周目起四维 ×2、兵力 ×2.2、金币 ×0.5，首通黄金减少。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
   const cur = G.curChapter();
   for (let c = D.CHAPTERS.length - 1; c >= 1; c--) {
     const C = D.CHAPTERS[c]; if (!C) continue;
@@ -317,7 +319,7 @@ function stageSheet(id) {
   const gold = replay ? SG.CFG.gold_replay(foe.lv) : SG.CFG.gold_clear(foe.lv) * mul;
   const foes = foe.names.map(n => {
     const h = D.H[n];
-    return `<div class="foe">${por(n, 's')}<div class="nm">${h ? TSEAL(h['品阶']) + ' ' : ''}${esc(n)}</div></div>`;
+    return `<div class="foe">${por(n, 's','', 'normal')}<div class="nm">${h ? TSEAL(h['品阶']) + ' ' : ''}${esc(n)}</div></div>`;
   }).join('');
   const my = G.teamPower(), fp = G.stagePower(id), r = fp ? my / fp : 9;
   const verdict = r >= 1.35 ? ['稳操胜券', 'v-ok'] : r >= 1.1 ? ['略占上风', 'v-ok'] : r >= 0.9 ? ['势均力敌', 'v-mid'] : r >= 0.7 ? ['颇为吃力', 'v-bad'] : ['恐难取胜', 'v-bad'];
@@ -365,8 +367,8 @@ function heroCard(n, act, extraCls = '', attrs = '') {
   return `<div class="hc tb-${h['品阶']}${!grid && inTeam(n) ? ' inteam' : ''}${extraCls}" data-a="${act}" data-n="${esc(n)}"${attrs}>${!grid && inTeam(n) ? '<span class="onf">阵上</span>' : ''}
     <span class="tag">${TSEAL(h['品阶'])}${guardOf(n) ? ` <span class="seal" style="background:var(--ink-2)">守${esc(guardOf(n))}</span>` : ''}</span>${G.canStar(n) ? '<span class="dot"></span>' : ''}
     ${por(n)}
-    <div class="nm">${facTag(h['阵营'])}${esc(n)}</div>
-    <div class="meta"><span>Lv.${s.lv}${xp ? '<i class="xpdot"></i>' : ''}</span><span class="stars">${stars(s.star)}</span></div>
+    <div class="nm">${facTag(h['阵营'])}${esc(s.form==='god'?'神·'+n:n)}</div>
+    <div class="meta"><span>Lv.${s.lv}${xp ? '<i class="xpdot"></i>' : ''}</span><span class="stars">${stars(s.star)}</span><span class="tiny muted"> / ${G.maxStar()} 星</span></div>
     ${(() => { const p = G.panel(n), wj = h['定位'] === '武将'; return `<div class="meta st"><span>${wj ? '武' : '智'} ${Math.round(wj ? p.atk : p.int)}</span><span>统 ${Math.round(p.def)}</span><span>速 ${Math.round(p.agi)}</span></div>`; })()}
     <div class="meta st"><span>兵 ${wan(s.hp)} / ${wan(s.lv * 1000)}</span></div>
     <div class="bar"><em class="${r < .5 ? 'low' : ''}" style="width:${clamp(r * 100, 0, 100)}%"></em></div></div>`;
@@ -378,7 +380,7 @@ function filterBar() {
   const sch = (v, t) => `<span class="chip${V.sort === v ? ' on' : ''}" data-a="sort" data-v="${v}">${t}</span>`;
   return `<div class="filters">${['全', '魏', '蜀', '吴', '汉', '无'].map(v => chip('fac', v, v === '无' ? '群' : v)).join('')}</div>
     <div class="filters">${['全', '无双', '虎', '名', '骁', '校'].map(v => chip('tier', v)).join('')}<span style="width:8px"></span>${['全', '武将', '文臣', '辅助'].map(v => chip('role', v)).join('')}</div>
-    <div class="filters"><span class="small muted">排序</span>${sch('power', '战力')}${sch('tier', '品阶')}${sch('lv', '等级')}<span style="width:8px"></span><span class="chip${V.filt.frag ? ' on' : ''}" data-a="filt-frag">碎片够</span></div>`;
+    <div class="filters"><span class="small muted">排序</span>${sch('power', '战力')}${sch('tier', '品阶')}${sch('lv', '等级')}<span style="width:8px"></span><span class="chip${V.filt.frag ? ' on' : ''}" data-a="filt-frag">可升星</span></div>`;
 }
 VIEWS.heroes = () => {
   const L = sortedHeroes();
@@ -386,7 +388,7 @@ VIEWS.heroes = () => {
   return `<div class="sec"><h2>将领</h2><span class="line"></span><span class="tp">${Object.keys(G.s.heroes).length} / ${D.HLIST.length}</span></div>
     ${filterBar()}
     <div class="btns" style="margin:0 0 8px"><div class="btn sm${ready ? ' main' : ' off'}" data-a="star-all">一键升星${ready ? `（${ready} 人）` : ''}</div></div>
-    <div class="tiny muted" style="margin-bottom:8px">一键升星只花本人碎片，不动兵符。要兵符补的进详情页自己升。</div><div class="hgrid">${L.map(n => heroCard(n, 'hero')).join('') || '<div class="empty">没有</div>'}</div>`;
+    <div class="tiny muted" style="margin-bottom:8px">一键升星仅消耗对应武将的碎片。使用兵符补足碎片时，请在武将详情页进行升星。</div><div class="hgrid">${L.map(n => heroCard(n, 'hero')).join('') || '<div class="empty">没有</div>'}</div>`;
 };
 
 // ---------------- 将领详情 ----------------
@@ -424,28 +426,29 @@ VIEWS.hero = () => {
       const have = G.s.bag.some(it => it.id === e.id), on = G.gearIds(n).includes(e.id);
       return `<span class="small" style="margin-right:8px;${on ? 'color:var(--zhu)' : have ? '' : 'color:var(--ink-4)'}">${esc(e['名'])}${on ? '·穿' : have ? '·有' : ''}</span>`;
     }).join('');
-    exHtml = `<div class="card small"><b class="kai">专属·${esc(st ? st.set : '')}</b><div>${own}</div>${G.kind === 'conquest' ? '' : `<div class="tiny" style="margin-top:2px">${exSrcHtml(n)}</div>`}${st ? `<div class="muted tiny" style="margin-top:4px">武器：${esc(st.w)}<br>宝物：${esc(st.t)}<br>两件：主属性 +6%　四件：主属性、统率再 +6%；${esc(st.four)}</div>` : ''}</div>`;
+    exHtml = `<div class="card small"><b class="kai">专属·${esc(st ? st.set : '')}</b><div>${own}</div>${G.kind === 'conquest' ? '' : `<div class="tiny" style="margin-top:2px">${exSrcHtml(n)}</div>`}${st ? `<div class="muted tiny" style="margin-top:4px">武器：${esc(s.form==='god'?'保留装备属性，神技替换原触发效果':st.w)}<br>宝物：${esc(s.form==='god'?'保留装备属性与开战属性效果':st.t)}<br>两件：主属性 +6%　四件：主属性、统率再 +6%；${esc(s.form==='god'?'神形态保留装备属性与套装属性加成，替换本体技能触发效果':st.four)}</div>` : ''}</div>`;
   }
   const fromForm = V.heroFrom === 'form' && G.s.formation.includes(n);
   const L = fromForm ? G.s.formation.filter(Boolean) : sortedHeroes(), i = L.indexOf(n), nx = fromForm ? 'form-hero' : 'hero';
   return `<div class="row" style="margin-bottom:8px">${fromForm ? '<span class="btn sm" data-a="go" data-v="form">← 布阵</span><span class="btn sm" data-a="form-off" style="margin-left:6px">下阵</span>' : (V.heroFrom === 'codex' ? '<span class="btn sm" data-a="go" data-v="codex">← 图鉴</span>' : '<span class="btn sm" data-a="go" data-v="heroes">← 将领</span>')}<span class="grow"></span>
       ${i > 0 ? `<span class="btn sm" data-a="${nx}" data-n="${esc(L[i - 1])}">上一个</span>` : ''}${i >= 0 && i < L.length - 1 ? `<span class="btn sm" data-a="${nx}" data-n="${esc(L[i + 1])}">下一个</span>` : ''}</div>
     <div class="hd-top">${por(n, 'l')}<div class="info">
-      <div class="hd-name">${esc(n)}</div>
+      <div class="hd-name">${esc(s.form==='god'?'神·'+n:n)}</div>
       <div class="row wrap" style="margin:4px 0">${TSEAL(h['品阶'])}${facTag(h['阵营'])}<span class="small muted">${esc(h['定位'])}</span></div>
       <div class="small muted">${esc(h['特点'])}</div>
-      <div style="margin-top:6px"><span class="kai" style="font-size:1.2em">${s.lv}</span> 级　<span class="stars">${stars(s.star)}</span></div>
+      <div style="margin-top:6px"><span class="kai" style="font-size:1.2em">${s.lv}</span> / ${maxLv} 级　<span class="stars">${stars(s.star)}</span><span class="tiny muted"> / ${G.maxStar()} 星</span></div>
       <div class="small">兵力 ${num(s.hp)} / ${num(s.lv * 1000)}</div>
       ${s.lv < maxLv ? `<div class="small muted">经验 ${num(s.exp || 0)} / ${num(SG.CFG.exp_need(s.lv))}</div><div class="bar xp" style="margin:3px 0"><em style="width:${clamp((s.exp || 0) / SG.CFG.exp_need(s.lv) * 100, 0, 100)}%"></em></div>` : ''}
       <div class="bar" style="margin:3px 0"><em class="${s.hp / (s.lv * 1000) < .5 ? 'low' : ''}" style="width:${clamp(s.hp / (s.lv * 10), 0, 100)}%"></em></div>
-      <div class="small muted">碎片 ${s.frag}${s.star < 5 ? `　升星要 ${need}` : ''}</div>
+      <div class="small muted">碎片 ${s.frag}${s.star < G.maxStar() ? `　升星要 ${need}` : ''}</div>
     </div></div>
     <div class="stat4">${['atk', 'def', 'int', 'agi'].map(k => `<div><span>${KEYCN[k]}</span><span><b>${Math.round(p[k])}</b><small>+${h[grow[k]]}/级</small></span></div>`).join('')}</div>
-    ${h['生平'] ? `<div class="bio"><div class="bh kai">生平</div>${h['生平'].split('｜').map(t => `<p>${esc(t)}</p>`).join('')}</div>` : ''}
-    ${skillHtml(n)}
+    ${h['生平'] ? `<details class="bio"><summary class="bh kai">生平</summary>${h['生平'].split('｜').map(t => `<p>${esc(t)}</p>`).join('')}</details>` : ''}
+    ${s.form==='god'&&SG.GodUI?SG.GodUI.skill(n):skillHtml(n)}
+    ${SG.GodUI?SG.GodUI.hero(n):''}
     <div class="btns">
       <div class="btn sm${s.lv < maxLv && G.s.gold >= c1 ? '' : ' off'}" data-a="train" data-k="1">练 1 级<br><span class="tiny">${s.lv < maxLv ? c1 + ' 金' : '已满'}</span></div>
-      <div class="btn sm${G.canStar(n) ? ' main' : ' off'}" data-a="star">升星<br><span class="tiny">${s.star >= 5 ? '已满' : `碎片 ${Math.min(s.frag, need)} + 兵符 ${Math.max(0, need - s.frag)}`}</span></div>
+      <div class="btn sm${G.canStar(n) ? ' main' : ' off'}" data-a="star">升星<br><span class="tiny">${s.star >= G.maxStar() ? '已满' : `碎片 ${Math.min(s.frag, need)} + 兵符 ${Math.max(0, need - s.frag)}`}</span></div>
       <div class="btn sm${rc > 0 && G.s.gold >= rc ? '' : ' off'}" data-a="recruit">征兵<br><span class="tiny">${rc > 0 ? rc + ' 金' : '满员'}</span></div>
     </div>
     <div class="sec"><h2>装备</h2><span class="line"></span><span class="tp">点格子换</span></div>
@@ -517,7 +520,8 @@ function pickSheet(i) {
 }
 function repick() { if (V.pickAt != null && $('modal').classList.contains('on')) { const m = $('modal'), y = m.querySelector('.sheet') ? m.querySelector('.sheet').scrollTop : 0; pickSheet(V.pickAt); const s = m.querySelector('.sheet'); if (s) s.scrollTop = y; } }
 function autoForm(max) {
-  const L = formPool().filter(n => G.hero(n).hp >= 1).sort((a, b) => G.power(b) - G.power(a)).slice(0, max);
+  let godTaken=false;
+  const L = formPool().filter(n => G.hero(n).hp >= 1).sort((a, b) => G.power(b) - G.power(a)).filter(n=>{if(G.hero(n).form!=='god')return true;if(godTaken)return false;godTaken=true;return true;}).slice(0, max);
   // 统率高的放前排
   const byDef = L.slice().sort((a, b) => G.panel(b).def - G.panel(a).def);
   const F = [null, null, null, null, null, null, null, null, null];
@@ -613,6 +617,7 @@ const DOT_ST = new Set(['灼烧', '中毒']);
 const pct = x => (Math.round(x * 1000) / 10).toString().replace(/\.0$/, '') + '%';
 function skillWords(u, sk) {
   // 技能行后面把效果写全：「关羽 · 温酒斩将（主动·瞬发）｜对敌方……」
+  if(sk?.god&&SG.God.DATA[u.name])return esc(SG.God.DATA[u.name].skillText);
   const r = D.SKROW[u.name];
   if (!r) return '';
   const set = sk && D.SET4[u.name] === sk && D0.sets[u.name];
@@ -810,7 +815,7 @@ const Play = {
 SG.Play = Play;
 function bcell(b, u, k) {
   if (!u) return '<div class="bcell void"></div>';
-  return `<div class="bcell" id="bc${k}">${por(u.name)}<div class="bn">${esc(u.label || u.name)}</div><div class="bar"><em style="width:${clamp(u.hp / u.maxhp * 100, 0, 100)}%"></em><b></b></div><div class="sts"></div><div class="fx"></div></div>`;
+  return `<div class="bcell" id="bc${k}">${por(u.name,'m','',u.form||'normal')}<div class="bn">${esc(u.label || u.name)}</div><div class="bar"><em style="width:${clamp(u.hp / u.maxhp * 100, 0, 100)}%"></em><b></b></div><div class="sts"></div><div class="fx"></div></div>`;
 }
 function battleGrids(b) {
   const A = b.teams[0], B = b.teams[1];
@@ -1021,10 +1026,10 @@ const ACT = {
   },
   'star-all': () => {
     const before = {}; for (const n in G.s.heroes) before[n] = G.s.heroes[n].star;
-    const k = G.starAll(); if (!k) { toast('没有人的碎片够'); return; }
+    const k = G.starAll(); if (!k) { toast('暂无可使用本人碎片升星的武将'); return; }
     const L = Object.keys(before).filter(n => G.s.heroes[n].star > before[n]).sort((a, b) => G.s.heroes[b].star - G.s.heroes[a].star);
     glog(`一键升星：${L.map(n => `${n} ${before[n]}→${G.s.heroes[n].star}星`).join('、')}`); save(); render();
-    openModal(`<div class="shead">一键升星<span class="x" data-a="close">关闭</span></div><div class="small muted">只花本人碎片，兵符一枚没动。</div>
+    openModal(`<div class="shead">一键升星<span class="x" data-a="close">关闭</span></div><div class="small muted">本次升星仅消耗对应武将的碎片，未消耗兵符。</div>
       ${L.map(n => `<div class="item"><span>${por(n, 's')}</span><div class="grow"><div class="en">${esc(n)}</div><div class="ed"><span class="stars">${stars(before[n])}</span> → <span class="stars">${stars(G.s.heroes[n].star)}</span>　剩碎片 ${G.s.heroes[n].frag}</div></div></div>`).join('')}
       <div class="btns"><div class="btn main" data-a="close">好</div></div>`);
   },
@@ -1064,6 +1069,7 @@ const ACT = {
     if (i == null) return;
     const lim = !V.cq && V.stage ? SG.stageLimit(D.STAGE[V.stage]).max : 9;
     if (!F[i] && F.filter(Boolean).length >= lim) { toast(`这关只能带 ${lim} 人`); return; }
+    const next=F.slice();next[i]=n;if(!SG.God.check(G,next.filter((x,j)=>x!==n||j===i)))return toast('每队最多上阵一位神将');
     const at = F.indexOf(n); if (at >= 0) F[at] = null;
     F[i] = n; save(); closeModal(); render();
   },
@@ -1084,6 +1090,7 @@ const ACT = {
     let i = V.sel != null ? V.sel : F.findIndex(x => !x);
     if (i < 0) { toast('九格满了'); return; }
     if (!F[i] && F.filter(Boolean).length >= lim) { toast(`这关只能带 ${lim} 人`); return; }
+    const next=F.slice();next[i]=n;if(!SG.God.check(G,next))return toast('每队最多上阵一位神将');
     F[i] = n; V.sel = null; save(); render();
   },
   'form-auto': () => { autoForm(!V.cq && V.stage ? SG.stageLimit(D.STAGE[V.stage]).max : 9); save(); render(); },
@@ -1128,7 +1135,7 @@ const ACT = {
     const L = G.s.bag.filter(it => { const r = D.EQID[it.id]; return !r['归属'] && !G.equippedBy(it.uid) && (r['档'] === '凡品' || r['档'] === '良品'); });
     let v = 0; L.forEach(it => v += G.sell(it.uid)); toast(`卖了 ${L.length} 件，得 ${v} 金`); save(); render();
   },
-  'new-cycle': () => ask('开新周目', '闯过的关卡清零重打，将领、装备、金币都带着。二周目敌方四维 ×1.5、兵力 ×1.6、金币 ×0.7；三周目起四维 ×2、兵力 ×2.2、金币 ×0.5，首通黄金减少。另抽三颗天象，一好一坏，管这一周目。', '开', () => { G.newCycle(); glog(`第 ${G.s.cycle} 周目，天象：${G.txList().join('、')}`); save(); go('main'); }),
+  'new-cycle': () => ask('开新周目', '闯过的关卡清零重打，将领、装备、金币都带着。将领等级上限 100，二周目起可升至 7 星。二周目敌方四维 ×1.5、兵力 ×1.6、金币 ×0.7；三周目起四维 ×2、兵力 ×2.2、金币 ×0.5，首通黄金减少。另抽三颗天象，一好一坏，管这一周目。', '开', () => { G.newCycle(); glog(`第 ${G.s.cycle} 周目，天象：${G.txList().join('、')}`); save(); go('main'); }),
 };
 SG.ACT = ACT;
 document.addEventListener('change', e => {

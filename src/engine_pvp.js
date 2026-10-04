@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const SG = globalThis.SG;
-const PREFIX = 'SGP3:', ZIP = 'SGP2:', LEGACY = 'SGP1:', RULE = 1, LIMIT = 16000;
+const PREFIX = 'SGP3:', SHORT_GOD = 'SGP5:', GOD_PREFIX = 'SGP4:', ZIP = 'SGP2:', LEGACY = 'SGP1:', RULE = 1, LIMIT = 16000;
 const fail = m => { throw new Error(m); };
 const int = (v, a, b) => Number.isInteger(v) && v >= a && v <= b;
 function state(g) {
@@ -18,7 +18,7 @@ function state(g) {
   return p;
 }
 function validate(raw) {
-  if (!raw || raw.kind !== 'pvp' || raw.v !== RULE) fail('这不是兼容的 PVP 对战码');
+  if (!raw || raw.kind !== 'pvp' || ![RULE,2].includes(raw.v)) fail('这不是兼容的 PVP 对战码');
   if (typeof raw.owner !== 'string' || !/^[a-zA-Z0-9-]{16,64}$/.test(raw.owner)) fail('对战码缺少玩家身份');
   if (typeof raw.name !== 'string' || !raw.name.trim() || [...raw.name.trim()].length > 16 || /[\u0000-\u001f]/.test(raw.name)) fail('姓名须为 1 至 16 个字');
   if (!Array.isArray(raw.team) || raw.team.length !== 9) fail('必须上阵九位将领');
@@ -26,22 +26,25 @@ function validate(raw) {
   const team = raw.team.map(h => {
     if (!h || !Object.hasOwn(SG.D.H, h.n) || seen.has(h.n)) fail('将领无效或重复');
     seen.add(h.n);
-    if (!int(h.lv, 1, 70) || !int(h.star, 1, 5)) fail('将领等级或星级无效');
+    if (!int(h.lv, 1, 100) || !int(h.star, 1, 7)) fail('将领等级或星级无效');
     if (!Array.isArray(h.eq) || h.eq.length !== SG.SLOTS.length) fail('装备资料不全');
     const eq = h.eq.map((id, i) => {
       if (id === null) return null;
       if (typeof id !== 'string' || !Object.hasOwn(SG.D.EQID, id) || SG.D.EQID[id]['槽'] !== SG.SLOTS[i]) fail('装备无效或槽位不符');
       return id;
     });
-    return { n: h.n, lv: h.lv, star: h.star, eq };
+    if(h.form!=null&&!['normal','god'].includes(h.form))fail('形态无效');
+    if(h.form==='god'&&(raw.v!==2||!SG.God?.DATA[h.n]))fail('神形态资料无效');
+    return { n: h.n, lv: h.lv, star: h.star, eq, ...(h.form==='god'?{form:'god'}:{}) };
   });
-  return { kind: 'pvp', v: RULE, owner: raw.owner, name: raw.name.trim(), team };
+  if(team.filter(h=>h.form==='god').length>1)fail('每队最多上阵一位神将');
+  return { kind: 'pvp', v: raw.v, owner: raw.owner, name: raw.name.trim(), team };
 }
 function snapshot(g) {
   const p = state(g), used = new Set();
-  return validate({ kind: 'pvp', v: RULE, owner: p.owner, name: p.name, team: p.cells.map(n => {
+  return validate({ kind: 'pvp', v: p.cells.some(n=>g.hero(n)?.form==='god')?2:RULE, owner: p.owner, name: p.name, team: p.cells.map(n => {
     const h = n && g.hero(n); if (!h) fail('先上满九位将领');
-    return { n, lv: h.lv, star: h.star, eq: SG.SLOTS.map(sl => {
+    return { n, lv: h.lv, star: h.star, ...(h.form==='god'?{form:'god'}:{}), eq: SG.SLOTS.map(sl => {
       const uid = (p.gear[n] || {})[sl]; if (uid == null) return null;
       const it = g.item(uid); if (!it) return null;
       if (used.has(uid)) fail('同一件装备不能重复使用'); used.add(uid);
@@ -62,7 +65,9 @@ async function compact(s) {
   const sparseBits = 36 + s.team.reduce((a, h) => a + h.eq.reduce((n, id, i) => n + (id === null ? 0 : widths[i]), 0), 0);
   const sparse = sparseBits < denseBits;
   const bits = [];
+  const god=s.v===2;
   const put = (value, width) => { for (let i = width - 1; i >= 0; i--) bits.push((value >>> i) & 1); };
+  if(god)put(s.team.findIndex(h=>h.form==='god')+1,4);
   for (const h of s.team) {
     put(CAT.heroes.indexOf(h.n), 9); put(h.lv - 1, 7); put(h.star - 1, 3);
     h.eq.forEach((id, i) => {
@@ -71,19 +76,19 @@ async function compact(s) {
     });
   }
   const bytes = new Uint8Array(3 + 16 + name.length + Math.ceil(bits.length / 8));
-  bytes.set([CAT.v, sparse ? 1 : 0, name.length]);
+  bytes.set([CAT.v, (sparse ? 1 : 0)+(god?2:0), name.length]);
   const hex = s.owner.replace(/-/g, '');
   for (let i = 0; i < 16; i++) bytes[3 + i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   bytes.set(name, 19);
   bits.forEach((bit, i) => { bytes[19 + name.length + (i >>> 3)] |= bit << (7 - (i % 8)); });
   const signed = new Uint8Array(bytes.length + 4); signed.set(bytes); signed.set(await checksum(bytes), bytes.length);
-  return PREFIX + to64(signed);
+  return (god?SHORT_GOD:PREFIX) + to64(signed);
 }
-async function expand(bytes) {
-  if (bytes.length < 24 || bytes.length > 137) fail('短码长度无效');
+async function expand(bytes, allowGod=false) {
+  if (bytes.length < 24 || bytes.length > (allowGod?138:137)) fail('短码长度无效');
   const body = bytes.slice(0, -4), sum = await checksum(body);
   if (!sum.every((b, i) => b === bytes[bytes.length - 4 + i])) fail('短码不完整或已损坏');
-  if (body[0] !== CAT.v || body[1] > 1 || body[2] < 1 || body[2] > 64) fail('短码版本或姓名无效');
+  if (body[0] !== CAT.v || body[1] > (allowGod?3:1) || body[2] < 1 || body[2] > 64) fail('短码版本或姓名无效');
   const hex = Array.from(body.slice(3, 19), b => b.toString(16).padStart(2, '0')).join('');
   const owner = [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
   const name = new TextDecoder('utf-8', { fatal: true }).decode(body.slice(19, 19 + body[2]));
@@ -93,20 +98,23 @@ async function expand(bytes) {
     let value = 0; for (let i = 0; i < width; i++, pos++) value = (value << 1) | ((body[pos >>> 3] >>> (7 - pos % 8)) & 1);
     return value;
   };
-  const team = Array.from({ length: 9 }, () => {
+  const god=!!(body[1]&2),godIndex=god?get(4)-1:-1;
+  if(god&&(godIndex < -1||godIndex>8))fail('神形态位置无效');
+  const team = Array.from({ length: 9 }, (_, position) => {
     const n = CAT.heroes[get(9)], lv = get(7) + 1, star = get(3) + 1;
     const eq = CAT.gear.map((ids, i) => {
-      const index = body[1] ? (get(1) ? get(widths[i]) + 1 : 0) : get(widths[i]);
+      const index = (body[1]&1) ? (get(1) ? get(widths[i]) + 1 : 0) : get(widths[i]);
       if (index > ids.length) fail('短码装备编号无效');
       return index === 0 ? null : ids[index - 1];
     });
-    return { n, lv, star, eq };
+    return { n, lv, star, eq, ...(position===godIndex?{form:'god'}:{}) };
   });
   if (Math.ceil(pos / 8) !== body.length || (pos % 8 && (body[body.length - 1] & ((1 << (8 - pos % 8)) - 1)))) fail('短码含多余资料');
-  return validate({ kind: 'pvp', v: RULE, owner, name, team });
+  return validate({ kind: 'pvp', v: god?2:RULE, owner, name, team });
 }
 async function encode(raw) {
-  const s = validate(raw), short = await compact(s); if (short) return short;
+  const s = validate(raw);
+  const short = await compact(s); if (short) return short;
   // 非 UUID 旧身份或字典外新将领装备继续使用兼容的压缩格式。
   const bytes = new TextEncoder().encode(JSON.stringify(s));
   if (typeof CompressionStream !== 'function') return LEGACY + to64(bytes);
@@ -115,12 +123,12 @@ async function encode(raw) {
 }
 async function decode(code) {
   if (typeof code !== 'string' || code.length > LIMIT * 2) fail('对战码过长');
-  code = code.replace(/\s/g, '').replace(/^sgp([123]):/i, (_, v) => 'SGP' + v + ':');
-  const short = code.startsWith(PREFIX), zipped = code.startsWith(ZIP);
-  if ((!short && !zipped && !code.startsWith(LEGACY)) || code.length > LIMIT) fail('请粘贴完整的 PVP 对战码');
+  code = code.replace(/\s/g, '').replace(/^sgp([12345]):/i, (_, v) => 'SGP' + v + ':');
+  const short = code.startsWith(PREFIX)||code.startsWith(SHORT_GOD), zipped = code.startsWith(ZIP);
+  if ((!short && !zipped && !code.startsWith(LEGACY) && !code.startsWith(GOD_PREFIX)) || code.length > LIMIT) fail('请粘贴完整的 PVP 对战码');
   try {
     let bytes = Uint8Array.from(atob(code.slice(PREFIX.length)), c => c.charCodeAt(0));
-    if (short) return await expand(bytes);
+    if (short) return await expand(bytes,code.startsWith(SHORT_GOD));
     if (zipped) {
       if (typeof DecompressionStream !== 'function') fail('浏览器不支持压缩对战码，请更新浏览器');
       const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
@@ -148,7 +156,7 @@ async function fight(g, opponent) {
   if (mine.owner === foe.owner) fail('不能挑战自己的对战码');
   const [myKey, key] = await Promise.all([identity(mine), identity(foe)]);
   SG.setBattleSeed(parseInt(myKey.slice(0, 8), 16) ^ parseInt(key.slice(8, 16), 16));
-  const units = s => s.team.map(h => SG.mkHeroUnit(h.n, h.lv, h.star, h.eq.filter(x => x !== null)));
+  const units = s => s.team.map(h => SG.mkHeroUnit(h.n, h.lv, h.star, h.eq.filter(x => x !== null),null,h.form));
   const battle = new SG.Battle(units(mine), units(foe), true);
   const [winner, rounds] = battle.run(30);
   const result = winner === 0 ? '胜' : winner === 1 ? '败' : '平';

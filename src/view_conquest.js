@@ -205,6 +205,7 @@ ACT['cq-go'] = () => {
   const g = G(), w = W(), n = V.cq.city;
   const P = picks(); if (!P.length) { toast('阵上没人'); return; }
   if (P.some(([x]) => g.hero(x).hp < 1)) { toast('有人没兵了，先征兵'); return; }
+  if(!SG.God.check(g,P.map(p=>p[0])))return toast('每队最多上阵一位神将');
   const A = w.my_units(P.map(p => p[0])), B = w.foe_units(n);
   SG.setBattleSeed(Math.floor(Math.random() * 2 ** 31));
   const b = new SG.Battle(A, B, true); A.forEach((u, i) => u.idx = P[i][1]);
@@ -269,6 +270,7 @@ ACT['cq-def-pick'] = () => {
 };
 function defend(names, cells) {
   const g = G(), w = W(), plan = g.s.pending;
+  if(names&&!SG.God.check(g,names))return toast('每队最多上阵一位神将');
   const { A, B } = w.defenseUnits(plan, names);
   SG.setBattleSeed(Math.floor(Math.random() * 2 ** 31));
   const b = new SG.Battle(A, B, true);

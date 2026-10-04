@@ -111,7 +111,8 @@ def main():
             if not force and os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(src):
                 skip += 1
                 continue
-            im = trim_mat(Image.open(src).convert('RGB'))
+            im = Image.open(src).convert('RGB')
+            if r['类别'] != '神': im = trim_mat(im)
             w = round(im.width * h / im.height)
             im.resize((w, h), Image.LANCZOS).save(out, 'WEBP', quality=82 if tag == 'l' else 78, method=6)
             done += 1

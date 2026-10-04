@@ -26,17 +26,17 @@ SG.MOBS = MOBS; SG.MOBG = MOBG; SG.MOB_FAC = MOB_FAC; SG.MOB_FILE = MOB_FILE;
 const CFG = {
   gold_clear: lv => 200 + 40 * lv,
   gold_replay: lv => 40 + 10 * lv,
-  train_cost: lv => 200 + lv * lv,   // V0.7：前期太便宜（开局 1000 金能练到 12 级），底价 20 → 200
-  train_cost_conquest: lv => 20 + 5 * lv,   // V0.7：霸业钱少、没有复刷，练级用老价
-  // V0.7 战斗经验：上阵的人拿；赢了 10×敌方等级×敌方人数，输了三分之一，阵亡减半，复刷减半，比敌方高 5 级以上只拿两成；升一级要 10×等级²
+  train_cost: lv => 300 + 2 * lv * lv,   // 2026-10-04：全模式 100 级；闯关练级提高金币成本
+  train_cost_conquest: lv => 40 + 10 * lv + Math.ceil(lv * lv / 4),   // 霸业金币较少，独立成本曲线亦提高
+  // V0.7 战斗经验：上阵的人拿；赢了 10×敌方等级×敌方人数，输了三分之一，阵亡减半，复刷减半，比敌方高 5 级以上只拿两成；升一级要 20×等级²
   exp_win: (lv, n) => 10 * lv * n, exp_lose: 1 / 3, exp_dead: .5, exp_replay: .5, exp_over: 5, exp_over_k: .2, exp_under: 10,
-  exp_need: lv => 10 * lv * lv,
+  exp_need: lv => 20 * lv * lv,
   draw: 300, draw10: 2700,
   pool: { '校': .40, '骁': .30, '名': .20, '虎': .08, '无双': .02 },
   frag_per_dup: 3,
   boss_mult: 3, hidden_mult: 5,
   token_price: 500, token_step: 25, token_cap: 1000,
-  star_need: [0, 5, 10, 15, 20], star_q: { '校': .5, '骁': .6, '名': .8, '虎': 1.0, '无双': 2.0 },
+  star_need: [0, 5, 10, 15, 20, 35, 55], star_q: { '校': .5, '骁': .6, '名': .8, '虎': 1.0, '无双': 2.0 },
   smith: 400, smith10: 3600, smith_pool: { '凡品': .35, '良品': .30, '精品': .20, '珍品': .10, '神品': .04, '专属': .01 },
   sell: { '凡品': 20, '良品': 60, '精品': 150, '珍品': 400, '神品': 1000 },
   recruit_per_k: 2, recruit_per_k_conquest: 2,   // V0.6：闯关征兵 4 → 2
@@ -120,9 +120,10 @@ function expAdd(h, e, maxLv) {
   return up;
 }
 SG.expFor = expFor; SG.expAdd = expAdd;
-function mkHeroUnit(name, lv, star, gearIds, hp) {
+function mkHeroUnit(name, lv, star, gearIds, hp, form) {
   const D = SG.D;
   const u = new SG.Unit(D.H[name], lv, star); u.skill = D.SK[name] || null;
+  if (form === 'god' && SG.God) SG.God.apply(u);
   if (gearIds && gearIds.length) wearIds(u, gearIds);
   if (hp != null) u.hp = Math.min(u.maxhp, Math.max(0, hp));
   return u;
@@ -332,7 +333,8 @@ class Game {
   }
   // ---- 基本 ----
   get D() { return SG.D; }
-  maxLv() { return Math.min(70, 50 + 10 * (this.s.cycle - 1)); }
+  maxLv() { return 100; }
+  maxStar() { return this.s.cycle >= 2 ? 7 : 5; }
   goldMul() { return cycleRules(this.s.cycle).gold * (this.txHas('岁星') ? 1.5 : 1); }
   clearGold2(typ) { return Math.floor((CFG.gold2_clear[typ] || 0) * cycleRules(this.s.cycle).gold2) + (this.txHas('天狼') ? 1 : 0); }
   // ---- 天象（二周目起每周目三颗，每颗可花 10 兵符换一次） ----
@@ -425,11 +427,11 @@ class Game {
   tokenPrice(k = 0) { const p = Math.min(CFG.token_cap, CFG.token_price + CFG.token_step * Math.floor((this.s.tokensBought + k) / 10)); return this.txHas('岁星') ? Math.round(p * 1.5) : p; }
   tokenCost(k) { let c = 0; for (let i = 0; i < k; i++) c += this.tokenPrice(i); return c; }
   buyTokens(k) { const c = this.tokenCost(k); if (this.s.gold < c) return false; this.s.gold -= c; this.s.tokensBought += k; this.s.tokens += k; return true; }
-  starNeed(n) { const h = this.hero(n); if (h.star >= 5) return 0; return Math.trunc(pyRound(CFG.star_need[h.star] * CFG.star_q[this.D.H[n]['品阶']])); }
-  canStar(n) { const h = this.hero(n), need = this.starNeed(n); return h.star < 5 && h.frag + this.s.tokens >= need; }
+  starNeed(n) { const h = this.hero(n); if (h.star >= this.maxStar()) return 0; return Math.trunc(pyRound(CFG.star_need[h.star] * CFG.star_q[this.D.H[n]['品阶']])); }
+  canStar(n) { const h = this.hero(n), need = this.starNeed(n); return h.star < this.maxStar() && h.frag + this.s.tokens >= need; }
   starUp(n) {
     const h = this.hero(n), need = this.starNeed(n);
-    if (h.star >= 5 || h.frag + this.s.tokens < need) return false;
+    if (h.star >= this.maxStar() || h.frag + this.s.tokens < need) return false;
     const useF = Math.min(h.frag, need); h.frag -= useF; this.s.tokens -= (need - useF); h.star++; return true;
   }
   // ---- 装备 ----
@@ -488,7 +490,7 @@ class Game {
   unequip(n, sl) { if (this.s.gear[n]) this.s.gear[n][sl] = null; }
   gearIds(n) { const g = this.s.gear[n]; if (!g) return []; return SLOTS.map(sl => g[sl]).filter(u => u != null).map(u => this.item(u)).filter(Boolean).map(it => it.id); }
   // ---- 面板（界面显示用） ----
-  unitOf(n, full) { const h = this.hero(n); return mkHeroUnit(n, h.lv, h.star, this.gearIds(n), full ? null : h.hp); }
+  unitOf(n, full) { const h = this.hero(n); return mkHeroUnit(n, h.lv, h.star, this.gearIds(n), full ? null : h.hp, h.form); }
   panel(n) {
     const u = this.unitOf(n, true);
     return { atk: u.stat('atk'), def: u.stat('def'), int: u.stat('int'), agi: u.stat('agi'), skill: u.skill, set4: !!(u.skill && this.D.SET4[n] && u.skill === this.D.SET4[n]) };
@@ -514,6 +516,8 @@ class Game {
     const lim = stageLimit(st);
     const picks = []; cells.forEach((n, i) => { if (n && this.hero(n)) picks.push([n, i]); });
     if (!picks.length) return { err: '阵上没人' };
+    if (new Set(picks.map(p=>p[0])).size !== picks.length) return {err:'同一人物不能重复上阵'};
+    if (SG.God && !SG.God.check(this,picks.map(p=>p[0]))) return {err:'每队最多上阵一位神将'};
     if (picks.length > lim.max) return { err: `这关只能带 ${lim.max} 人` };
     if (picks.some(([n]) => this.hero(n).hp < 1)) return { err: '有人没兵了，先征兵' };
     const replay = this.isCleared(id);
@@ -633,7 +637,7 @@ class Game {
     }
   }
   stripTeam(names) { for (const n of names) if (n && this.s.gear[n]) for (const sl of SLOTS) this.s.gear[n][sl] = null; }
-  ownStarReady(n) { const h = this.hero(n); return h.star < 5 && h.frag >= this.starNeed(n) && this.starNeed(n) > 0; }
+  ownStarReady(n) { const h = this.hero(n); return h.star < this.maxStar() && h.frag >= this.starNeed(n) && this.starNeed(n) > 0; }
   starAll() { let k = 0; for (const n in this.s.heroes) while (this.ownStarReady(n)) { const h = this.hero(n); h.frag -= this.starNeed(n); h.star++; k++; } return k; }
   trainMax(n) { return this.train(n, 999); }
   nextStage() { return this.D.STAGES.find(s => (s['类型'] === '主线' || s['类型'] === '章末') && !this.isCleared(s.id) && this.stageUnlocked(s.id)); }

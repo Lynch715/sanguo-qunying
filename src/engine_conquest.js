@@ -25,7 +25,7 @@ SG.CQ = CQ; SG.CQ_FACTIONS = FACTIONS; SG.CQ_CAPITAL = CAPITAL; SG.CQ_LEADER = L
 function stat_power(name, lv, star) {
   const h = SG.D.H[name];
   const base = [['武力', '武成长'], ['统率', '统成长'], ['智力', '智成长'], ['速度', '速成长']].reduce((a, [k, g]) => a + parseFloat(h[k]) + parseFloat(h[g]) * (lv - 1), 0);
-  return base * (1 + .05 * (star - 1)) * (1 + .15 * SG.TIER_ORDER.indexOf(h['品阶'])) * lv / 10;
+  return base * (1 + SG.STARK[star]) * (1 + .15 * SG.TIER_ORDER.indexOf(h['品阶'])) * lv / 10;
 }
 SG.cq_stat_power = stat_power;
 
@@ -108,7 +108,7 @@ class World {
     let tot = 0; const hpf = 0.5 + 0.5 * (c.hp != null ? c.hp : 1.0);
     for (const x of c.garrison) {
       if (SG.D.H[x]) tot += stat_power(x, lv, star);
-      else tot += (SG.MOBS[x].reduce((a, b) => a + b, 0) + SG.MOBG.reduce((a, b) => a + b, 0) * (lv - 1)) * (1 + .05 * (star - 1)) * lv / 10;
+      else tot += (SG.MOBS[x].reduce((a, b) => a + b, 0) + SG.MOBG.reduce((a, b) => a + b, 0) * (lv - 1)) * (1 + SG.STARK[star]) * lv / 10;
     }
     return tot * hpf;
   }
@@ -222,7 +222,7 @@ class World {
   // 守城：names 是上阵的人（null = 自动：守将 + 最强 8 人），返回 { A, B, gb } 给调用方开打
   defenseUnits(plan, names) {
     const st = this.st, c = st.city[plan.best], g = c.guard;
-    if (!names) names = this.defenders(plan.best);
+    if (!names) {let chosen=false;names=this.defenders(plan.best).filter(n=>{if(this.p.heroes[n]?.form!=='god')return true;if(chosen)return false;chosen=true;return true;});}
     const A = this.my_units(names);
     let gb = g && names.includes(g) ? 1 + CQ.guard_bonus * Math.floor(this.p.cqStat4(g)['统率'] / 10) : 1;
     if (!names.includes(g) && g) gb = 1 + CQ.guard_bonus * Math.floor(this.p.cqStat4(g)['统率'] / 10);   // 守将在城里就有加成
@@ -298,11 +298,11 @@ class ConquestGame extends SG.Game {
     if (this.s.gear[n]) delete this.s.gear[n];
     this.s.formation = this.s.formation.map(x => x === n ? null : x);
   }
-  cqPower(n) { const h = SG.D.H[n], s = this.s.heroes[n]; const base = [['武力', '武成长'], ['统率', '统成长'], ['智力', '智成长'], ['速度', '速成长']].reduce((a, [k, g]) => a + parseFloat(h[k]) + parseFloat(h[g]) * (s.lv - 1), 0); return base * (1 + .05 * (s.star - 1)) * (1 + .15 * SG.TIER_ORDER.indexOf(h['品阶'])); }
-  cqStat4(n) { const h = SG.D.H[n], s = this.s.heroes[n], k = 1 + .05 * (s.star - 1), o = {}; for (const [c, g] of [['武力', '武成长'], ['统率', '统成长'], ['智力', '智成长'], ['速度', '速成长']]) o[c] = (parseFloat(h[c]) + parseFloat(h[g]) * (s.lv - 1)) * k; return o; }
+  cqPower(n) { const h = SG.D.H[n], s = this.s.heroes[n]; const base = [['武力', '武成长'], ['统率', '统成长'], ['智力', '智成长'], ['速度', '速成长']].reduce((a, [k, g]) => a + parseFloat(h[k]) + parseFloat(h[g]) * (s.lv - 1), 0); return base * (1 + SG.STARK[s.star]) * (1 + .15 * SG.TIER_ORDER.indexOf(h['品阶'])); }
+  cqStat4(n) { const h = SG.D.H[n], s = this.s.heroes[n], k = 1 + SG.STARK[s.star], o = {}; for (const [c, g] of [['武力', '武成长'], ['统率', '统成长'], ['智力', '智成长'], ['速度', '速成长']]) o[c] = (parseFloat(h[c]) + parseFloat(h[g]) * (s.lv - 1)) * k; return o; }
   cqHp(n) { const s = this.s.heroes[n]; return s.hp / (s.lv * 1000); }
   cqSetHp(n, r) { const s = this.s.heroes[n]; if (s) s.hp = r * s.lv * 1000; }
-  cqUnits(names) { return names.map(n => this.unitOf(n)); }
+  cqUnits(names) { if(SG.God&&!SG.God.check(this,names))throw Error('每队最多上阵一位神将');return names.map(n => this.unitOf(n)); }
   // 规则差异：招贤池锁本阵营 + 无阵营；征兵每千兵 2×等级；铁匠铺不按章封顶
   drawPoolFor(t) { const me = this.world.st.me; return SG.D.POOL[t].filter(n => [me, '无'].includes(SG.D.H[n]['阵营'])); }
   draw(k) {
@@ -315,7 +315,7 @@ class ConquestGame extends SG.Game {
   }
   drawGold() { return null; }
   recruitCost(n) { const h = this.hero(n); const lack = Math.max(0, h.lv * 1000 - h.hp); return Math.ceil(lack / 1000 * SG.CFG.recruit_per_k_conquest * h.lv); }
-  trainPrice(lv) { return SG.CFG.train_cost_conquest(lv); }   // V0.7：霸业练级用老价
+  trainPrice(lv) { return SG.CFG.train_cost_conquest(lv); }   // 霸业采用独立的提高后练级价格
   curChapter() { return 26; }
   guards() { const w = this.world, out = {}; for (const c of w.cities(w.st.me)) { const g = w.st.city[c].guard; if (g) out[g] = c; } return out; }
   toJSON() { this.s.world = this.world.st; return JSON.stringify(this.s); }

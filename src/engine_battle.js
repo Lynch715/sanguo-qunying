@@ -47,8 +47,8 @@ SG.util = { first, argmax, argmin, sortBy, pyRound };
 
 const BASE = 0.30, GAMMA = 2.0;
 const CTRL = ['震慑', '混乱', '缴械', '计穷', '怯战', '挑衅', '迷惑'];
-const STARK = { 1: 0, 2: .05, 3: .10, 4: .15, 5: .20 };
-SG.CTRL = CTRL;
+const STARK = { 1: 0, 2: .05, 3: .10, 4: .15, 5: .20, 6: .26, 7: .32 };
+SG.CTRL = CTRL; SG.STARK = STARK;
 
 // ---------------- Unit ----------------
 class Unit {
@@ -105,6 +105,7 @@ class Unit {
       if (CTRL.includes(s)) r = Math.max(1, r);
       if (SG.REND_FIX && b.inRend) r += 1;
       this.status[s] = Math.max(this.status[s] || 0, r);
+      b.hook_all('status_added',this,s);
       b.say(`${this.name} ${s}`, { t: 'st', u: this, s, n: this.status[s], by: src });
       if ((s === '震慑' || s === '混乱' || s === '计穷') && this.prep && !this.flags['prep_unbreak']) this.prep = null;
       return true;
@@ -164,6 +165,7 @@ SG.GLOBAL_HOOKS_EXTRA = GLOBAL_HOOKS_EXTRA;
 
 class Battle {
   constructor(A, B, log = false) {
+    if ([A,B].some(t=>t.filter(u=>u.form==='god').length>1)) throw new Error('每队最多上阵一位神将');
     this.teams = [A, B]; this._all = A.concat(B); this.round = 0; this.stats = { kills: [], counter: [0, 0] }; this.log = log; this.lines = []; this.events = []; this.flags_round = {};
     this.teams.forEach((t, s) => t.forEach((u, i) => { u.team = t; u.side = s; u.idx = i; u.battle = this; }));
     this.hooks = [];
@@ -213,6 +215,7 @@ class Battle {
     D *= (1 - ignore);
     const m = mult * ((kind === 'mag' && tag === 'attack') ? 0.9 : 1.0);
     let dmg = src.lvhp * (0.5 + 0.5 * src.ratio()) * BASE * m * Math.pow(A / (A + D), GAMMA) * R.uniform(0.85, 1.15);
+    const reductionFloor=dmg*(1+src.flag('dmgout'))*(1+src.flag(kind==='mag'?'magout':'physout'))*.5;
     dmg *= (1 + src.flag('dmgout')) * (1 + tgt.flag('dmgin'));
     if (kind === 'mag') dmg *= (1 + tgt.flag('magin')); else dmg *= (1 + tgt.flag('physin'));
     if (tag === 'pursue') dmg *= (1 + tgt.flag('pursuein'));
@@ -224,22 +227,23 @@ class Battle {
     else dmg *= (1 + src.flag('physout'));   // V0.3 天象太白；sim 里没有这个口子，恒为 0
     if (tag === 'pursue') dmg *= (1 + src.flag('pursueout'));
     if (tgt.prep) dmg *= (1 - (tgt.flags['prep_guard'] || 0));
+    if(this._all.some(u=>u.form==='god'))dmg=Math.max(dmg,reductionFloor);
     let crit = false;
     if (R.random() < src.flag('crit') + agiEdge(src, tgt, 'crit')) { dmg *= (src.flags['critmul'] != null ? src.flags['critmul'] : 1.5); crit = true; }
-    return this.apply(src, tgt, dmg, kind, tag, false, crit);
+    return this.apply(src, tgt, dmg, kind, tag, false, crit, this._all.some(u=>u.form==='god')?reductionFloor*(crit?1.5:1):0);
   }
-  apply(src, tgt, dmg, kind = 'phys', tag = 'skill', trueDmg = false, crit = false) {
+  apply(src, tgt, dmg, kind = 'phys', tag = 'skill', trueDmg = false, crit = false, reductionFloor = 0) {
     if (!tgt.alive()) return 0;
-    const sub = this.hook_all('substitute', tgt, src, kind, tag);
+    const sub = tgt.flags._subbing ? null : this.hook_all('substitute', tgt, src, kind, tag);
     if (sub && sub !== tgt && sub.alive()) {
       this.say(`${sub.name} 替 ${tgt.name} 挡下`, { t: 'sub', u: sub, v: tgt });
       sub.flags['_subbing'] = true;   // V0.6：替挡这一击里，subbed 条件成立（典韦短戟囊）
-      try { return this.apply(src, sub, dmg * (sub.flags['sub_mul'] != null ? sub.flags['sub_mul'] : 1.0), kind, tag, trueDmg, crit); }
+      try { return this.apply(src, sub, Math.max(reductionFloor,dmg * (sub.flags['sub_mul'] != null ? sub.flags['sub_mul'] : 1.0)), kind, tag, trueDmg, crit, reductionFloor); }
       finally { sub.flags['_subbing'] = false; }
     }
     const hp0 = tgt.hp, tot = dmg; let ab = 0;
     if (!trueDmg && tgt.shield > 0) {
-      const a = Math.min(tgt.shield, dmg); tgt.shield -= a; dmg -= a; ab = a;
+      const a = Math.min(tgt.shield, dmg * (1-(this.godContext?.shieldPierce||0))); tgt.shield -= a; dmg -= a; ab = a;
       if (tgt.shield <= 0) this.hook_all('shield_broken', tgt);
     }
     tgt.hp -= dmg;
@@ -247,7 +251,8 @@ class Battle {
     this.say(`${src ? src.name : '-'} → ${tgt.name} ${Math.trunc(tot)} (${tag})`, { t: 'hit', s: src, u: tgt, d: tot, ab, h0: hp0, h1: Math.max(0, tgt.hp), k: kind, g: tag, c: crit });
     if (src && tag === '反击') this.stats.counter[src.side]++;
     if (src) this.hook_all('after_hit', src, tgt, dmg, kind, tag);
-    this.hook_all('on_hit_taken', tgt, src, dmg, kind, tag, ab);   // ab：护盾挡下的量（V0.7，反弹用）
+    this.hook_all('on_hit_taken', tgt, src, dmg, kind, tag, ab);
+    this.hook_all('on_damage_any',tgt,src);   // ab：护盾挡下的量（V0.7，反弹用）
     if (tgt.hp <= 0) {
       tgt.hp = 0;
       if (!this.hook_all('on_lethal', tgt, src) && !this.hook_all('on_lethal_any', tgt, src)) {
@@ -258,13 +263,13 @@ class Battle {
           if (e === 'on_ally_death' && u.alive() && u.side === tgt.side && u !== tgt) fn(u, tgt, src);
           if (e === 'on_enemy_death' && u.alive() && u.side !== tgt.side) fn(u, tgt, src);
         }
-        if (src) this.hook_all('on_kill', src, tgt);
+        if (src) {this.hook_all('on_kill', src, tgt);this.hook_all('kill_any',src,tgt);}
       }
     }
     return dmg;
   }
   heal(src, tgt, pct) {
-    if (!tgt.alive()) return;
+    if (!tgt.alive() || tgt.has('禁疗') || tgt.flag('healblock')) return;
     const amt = tgt.maxhp * pct * (1 + (src ? src.flag('healout') : 0));
     const hp0 = tgt.hp;
     if (tgt.has('诅咒')) { this.apply(null, tgt, amt, 'mag', '诅咒', true); return; }
@@ -331,24 +336,35 @@ class Battle {
   }
   act(u) {
     if (!u.alive()) return;
+    this.hook_all('before_action',u);
     if (u.has('震慑')) { this.say(`${u.name} 震慑中`, { t: 'skip', u }); return; }
     const sk = u.skill;
     // V0.6：每回合先掷主动技，再普攻（SG.BOTH）；关掉就是老规矩：发了技能这回合不普攻
     const both = SG.BOTH;
-    if (u.prep) { const f = u.prep; u.prep = null; this.say(`${u.name} 结算 ${sk.name || '技'}`, { t: 'skill', u, n: sk.dname || sk.name, how: '结算', sk }); SG.count(sk); f(this, u); if (!both) return; }
+    if (u.prep) { const f = u.prep; u.prep = null; this.say(`${u.name} 结算 ${sk.name || '技'}`, { t: 'skill', u, n: sk.dname || sk.name, how: '结算', sk }); SG.count(sk); this.cast({...sk,fn:f},u); if (!both) return; }
     else if (sk && (sk.type === '主动·瞬发' || sk.type === '主动·准备') && !u.has('计穷') && !u.flags['no_active']) {
-      let rate = sk.rate + u.flag('rate');
+      let rate = sk.rate + u.flag('rate') + (u.flags.godNextRate||0);
       if (sk.first_round && this.round === 1) rate = 1.0;
       if (sk.gate && !sk.gate(this, u)) rate = 0;
       if (R.random() < rate) {
+        delete u.flags.godNextRate;
         if (sk.type === '主动·准备' && !u.flags['no_prep']) {
           u.prep = sk.fn; this.say(`${u.name} 准备 ${sk.name || '技'}`, { t: 'prep', u, n: sk.dname || sk.name, sk }); this.hook_all('on_prepare', u); if (!both) return;
-        } else { this.say(`${u.name} 发动 ${sk.name || '技'}`, { t: 'skill', u, n: sk.dname || sk.name, how: '发动', sk }); SG.count(sk); sk.fn(this, u); if (!both) return; }
+        } else { this.say(`${u.name} 发动 ${sk.name || '技'}`, { t: 'skill', u, n: sk.dname || sk.name, how: '发动', sk }); SG.count(sk); this.cast(sk,u); if (!both) return; }
       }
     }
     if (!u.alive() || u.has('震慑')) return;
     if (!this.teams[0].some(x => x.alive()) || !this.teams[1].some(x => x.alive())) return;
     this.normal_attack(u);
+  }
+  cast(sk,u) {
+    const old=this.godContext;
+    this.godContext={active:sk.type.startsWith('主动'),aoe:!!sk.aoe,chain:false};
+    try {sk.fn(this,u);} finally {this.godContext=old;}
+  }
+  selfDeath(u) {
+    this.say(`${u.name} 神技自损退场`,{t:'die',u});this.hook_all('on_death',u,null);
+    for(const [e,a,fn] of this.hooks)if(e==='on_ally_death'&&a.alive()&&a.side===u.side&&a!==u)fn(a,u,null);
   }
   run(max_rounds = 30) {
     const all = this.teams[0].concat(this.teams[1]);
@@ -390,6 +406,7 @@ class Battle {
         if (!u.alive()) continue;
         for (const s of ['灼烧', '中毒']) {
           if (u.has(s)) {
+            if(s==='灼烧'&&u.flags.godBurn&&SG.God){SG.God.tickBurn(this,u);continue;}
             const [srcu, per] = u.flags[s + '_src'] || [null, 0.03];
             const k = (srcu != null && srcu.alive()) ? (0.5 + 0.5 * srcu.ratio()) : 0.5;
             if (s === '灼烧') this.apply(null, u, u.maxhp * per * k * (1 + u.flag('burnin')), 'mag', s);
@@ -625,7 +642,7 @@ const EV = { myprep: 'on_prepare', dealt: 'after_hit', hit: 'on_hit_taken', magh
 function build(spec, name, cname) {
   const typ = spec.type, effs = spec.effs;
   effs.forEach((e, i) => { e.id = `${name}#${i}`; });
-  const sk = { name, cname: cname || name, type: ({ '瞬发': '主动·瞬发', '准备': '主动·准备' })[typ] || typ, rate: spec.rate || 0, first_round: spec.first, hooks: {} };
+  const sk = { aoe: effs.some(e=>['dmg'].includes(e.op)&&/^(e[2-5]|eall|efront3|eback2|eatk2)$/.test(e.args[0])), name, cname: cname || name, type: ({ '瞬发': '主动·瞬发', '准备': '主动·准备' })[typ] || typ, rate: spec.rate || 0, first_round: spec.first, hooks: {} };
   let inline = effs.filter(e => e.trig == null);
   const setups = effs.filter(e => e.trig === 'setup');
   const hooked = effs.filter(e => e.trig && e.trig !== 'setup');
@@ -884,14 +901,14 @@ function loadSet4(rows, SKROWS) {
 function wear(u, items, EQ, SET4) {
   u.equip = items.map(n => EQ[n]);
   for (const e of u.equip) {
-    if (e['DSL']) u.extras.push(build(parse_line('被动 | ' + e['DSL']), e['名']));
+    if (e['DSL']) {let dsl=e['DSL'];if(u.form==='god'&&e['归属']===u.name)dsl=dsl.split(';').filter(x=>/^\s*setup:(buff|flag)\(/.test(x)).join(';');if(dsl)u.extras.push(build(parse_line('被动 | '+dsl),e['名']));}
   }
   const own = u.equip.filter(e => e['归属'] === u.name);
   if (own.length >= 2) {
     const main = u.role !== '武将' ? 'int' : 'atk';
     u.extras.push(build(parse_line(`被动 | setup:buff(self,${main},6)`), '两件'));
   }
-  if (own.length >= 4 && SET4 && SET4[u.name]) u.skill = SET4[u.name];
+  if (own.length >= 4 && u.form !== 'god' && SET4 && SET4[u.name]) u.skill = SET4[u.name];
   if (own.length >= 4 && SG.SET4_BONUS) { const main = u.role !== '武将' ? 'int' : 'atk'; u.extras.push(build(parse_line(`被动 | setup:buff(self,${main},${SG.SET4_BONUS}); setup:buff(self,def,${SG.SET4_BONUS})`), '四件')); }   // V0.7：四件齐再给主属性、统率
 }
 SG.loadSkills = loadSkills; SG.loadSet4 = loadSet4; SG.wear = wear;

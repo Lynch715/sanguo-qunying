@@ -428,3 +428,8 @@ input,textarea,select{font-size:16px!important}
 .pvp-trophies[open] .pvp-fold-closed{display:none}
 
 .pvp-ear-name{width:100%;min-width:0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.7em;line-height:1.5;margin-top:2px;color:var(--ink-2)}
+
+/* 神形态保留整张立绘与兵器轮廓。 */
+.god-grid {align-items:stretch}.god-card{min-width:0;text-align:center}.god-card .por{height:220px;width:100%;max-width:165px;margin:0 auto}.god-card .por img{object-fit:contain}.god-card p{text-align:left}.god-panel p{margin:8px 0}@media(max-width:480px){.god-card .por{height:180px}.god-card{padding:8px}}
+
+.bio summary{cursor:pointer;list-style:disclosure-closed}.bio[open] summary{list-style:disclosure-open}.bio summary::marker{color:var(--zhu)}

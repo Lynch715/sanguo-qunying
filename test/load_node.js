@@ -8,6 +8,6 @@ function tsv(name) {
 }
 const DATA = { heroes: tsv('heroes_all.tsv'), skills: tsv('skills_dsl.tsv'), equip: tsv('equip.tsv'), set4: tsv('set4.tsv'), stages: tsv('stages.tsv'), cities: tsv('cities.tsv'), bonds: tsv('bonds.tsv'), exsrc: tsv('excl_src.tsv'), skpow: fs.existsSync(path.join(ROOT, 'data', 'skill_power.tsv')) ? tsv('skill_power.tsv') : [] };
 globalThis.SGDATA = DATA;
-for (const f of ['engine_battle.js', 'engine_game.js', 'engine_ach.js', 'engine_conquest.js']) { const p = path.join(ROOT, 'src', f); if (fs.existsSync(p)) require(p); }
+for (const f of ['engine_battle.js', 'engine_game.js', 'engine_gods.js', 'engine_ach.js', 'engine_conquest.js']) { const p = path.join(ROOT, 'src', f); if (fs.existsSync(p)) require(p); }
 if (globalThis.SG && globalThis.SG.setBonds) globalThis.SG.setBonds(DATA.bonds);
 module.exports = { SG: globalThis.SG, DATA, tsv };

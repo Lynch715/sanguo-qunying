@@ -12,7 +12,7 @@ import csv, hashlib, json, os, re, sys
 VERSION = '0.8'
 ROOT = os.path.dirname(os.path.abspath(__file__))
 NOASSETS = '--noassets' in sys.argv
-SRC = ['engine_battle.js', 'engine_game.js', 'engine_ach.js', 'engine_conquest.js', 'saveio.js', 'pvp_catalog.js', 'engine_pvp.js', 'view.js', 'view_pvp.js', 'view_conquest.js', 'pwa.js']
+SRC = ['engine_battle.js', 'engine_game.js', 'engine_gods.js', 'engine_ach.js', 'engine_conquest.js', 'saveio.js', 'pvp_catalog.js', 'engine_pvp.js', 'view.js', 'view_gods.js', 'view_pvp.js', 'view_conquest.js', 'pwa.js']
 
 
 def tsv(name):
