@@ -268,7 +268,7 @@ function chapCard(c) {
 }
 VIEWS.stages = () => {
   let h = '';
-  if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：敌方等级、星级整体上调，杂兵换成名将，所有收入 ×1.5。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
+  if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：敌方等级、星级整体上调，杂兵换成名将。二周目四维 ×1.5、兵力 ×1.6、金币 ×0.7；三周目起四维 ×2、兵力 ×2.2、金币 ×0.5，首通黄金减少。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
   const cur = G.curChapter();
   for (let c = D.CHAPTERS.length - 1; c >= 1; c--) {
     const C = D.CHAPTERS[c]; if (!C) continue;
@@ -334,7 +334,7 @@ function stageSheet(id) {
     ${(() => { const fb = SG.activeBonds(foe.names); return fb.length ? `<div class="small" style="margin-top:6px">敌方羁绊：${fb.map(a => `【${esc(a.b.name)}】${bondVal(a.b, a.t)}`).join('　')}</div>` : ''; })()}
     ${(() => { const tl = G.txHas('贪狼'), dt = SG.CFG.drop_tier(+s['章']), ti = Math.max(0, dt - (replay ? 1 : 0) - (tl ? 1 : 0)), tn = SG.EQ_TIERS[ti];
       const pool = D.EQROWS.filter(e => e['档'] === tn && !e['归属']);
-      const head = replay ? `复刷：${num(Math.round(gold * G.goldMul()))} 金，${tl ? '四成' : '两成'}掉一件${tn}装备。` : `首通：${num(Math.round(gold * G.goldMul()))} 金${(() => { const g2 = (SG.CFG.gold2_clear[typ] || 0) * (G.s.cycle >= 2 ? 2 : 1) + (tl ? 1 : 0); return g2 ? `、黄金 ${g2}` : ''; })()}，必掉${tl ? '两件' : '一件'}${tn}装备。`;
+      const head = replay ? `复刷：${num(Math.round(gold * G.goldMul()))} 金，${tl ? '四成' : '两成'}掉一件${tn}装备。` : `首通：${num(Math.round(gold * G.goldMul()))} 金${(() => { const g2 = G.clearGold2(typ); return g2 ? `、黄金 ${g2}` : ''; })()}，必掉${tl ? '两件' : '一件'}${tn}装备。`;
       return `<div class="small muted" style="margin-top:6px">${head}</div><details class="droppool"><summary>${tn}装备 ${pool.length} 种，从里面随机掉</summary><div class="dpl">${pool.map(e => `<div>${eqSeal(e)}<b>${esc(e['名'])}</b><span>${esc(e['槽'])}　${eqStatTxt(e, '')}</span></div>`).join('')}</div></details>`; })()}
     ${exDrop ? exDropHtml(exDrop, replay) : ''}
     <div class="btns"><div class="btn main${replay && left <= 0 ? ' off' : ''}" data-a="to-form" data-id="${id}">${lim.max < 9 ? `布阵（限 ${lim.max} 人）` : '布阵出战'}</div>${replay ? (q => `<div class="btn${left > 0 && q > 0 ? '' : ' off'}" data-a="sweep" data-id="${id}">速战<br><span class="tiny">今天还剩 ${q} 次</span></div>`)(G.sweepLeft(id)) : ''}</div>
@@ -1128,7 +1128,7 @@ const ACT = {
     const L = G.s.bag.filter(it => { const r = D.EQID[it.id]; return !r['归属'] && !G.equippedBy(it.uid) && (r['档'] === '凡品' || r['档'] === '良品'); });
     let v = 0; L.forEach(it => v += G.sell(it.uid)); toast(`卖了 ${L.length} 件，得 ${v} 金`); save(); render();
   },
-  'new-cycle': () => ask('开新周目', '闯过的关卡清零重打，将领、装备、金币都带着。敌方整体变强，所有收入 ×1.5。另抽三颗天象，一好一坏，管这一周目。', '开', () => { G.newCycle(); glog(`第 ${G.s.cycle} 周目，天象：${G.txList().join('、')}`); save(); go('main'); }),
+  'new-cycle': () => ask('开新周目', '闯过的关卡清零重打，将领、装备、金币都带着。二周目敌方四维 ×1.5、兵力 ×1.6、金币 ×0.7；三周目起四维 ×2、兵力 ×2.2、金币 ×0.5，首通黄金减少。另抽三颗天象，一好一坏，管这一周目。', '开', () => { G.newCycle(); glog(`第 ${G.s.cycle} 周目，天象：${G.txList().join('、')}`); save(); go('main'); }),
 };
 SG.ACT = ACT;
 document.addEventListener('change', e => {

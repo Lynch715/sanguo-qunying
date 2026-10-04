@@ -167,15 +167,27 @@ function limitParts(stage) {
 }
 SG.stageLimit = stageLimit; SG.limitParts = limitParts;
 
-// 周目换算：等级平移到 30–60，星级 +1，杂兵换同阵营名档（按关卡 id 哈希定死），隐藏关不换
+// 后续周目共用难度与经济配置；四周目起沿用三周目强度。
+function cycleRules(cycle = 1) {
+  return cycle >= 3 ? { stats: 2, hp: 2.2, gold: .5, gold2: .5 }
+    : cycle === 2 ? { stats: 1.5, hp: 1.6, gold: .7, gold2: 1 }
+    : { stats: 1, hp: 1, gold: 1, gold2: 1 };
+}
+function cycleEnemy(name, lv, star, ease, cycle) {
+  const rules = cycleRules(cycle), u = mkEnemy(name, lv, star, ease * rules.stats);
+  u.maxhp *= rules.hp; u.hp *= rules.hp;
+  return u;
+}
+SG.cycleRules = cycleRules;
+// 杂兵换同阵营名将（按关卡 id 哈希定死），隐藏关不换。
 function stageFoes(stage, cycle = 1, tx = null, myLv = 0) {
   const D = SG.D;
   let names = stage['敌方'].split('、').filter(x => x);
   let lv = +stage['等级'], star = +stage['星级'];
   if (stage['类型'] === '章末') lv += CFG.boss_lv_plus;
   if (cycle >= 2) {
-    lv = Math.min(70, Math.round(30 + (lv - 1) * 30 / 52) + (cycle - 2) * 10);
-    star = Math.min(5, star + 1);
+    lv = Math.min(70, Math.round(45 + (lv - 1) * 20 / 52) + (cycle >= 3 ? 10 : 0));
+    star = Math.min(5, star + (cycle >= 3 ? 3 : 2));
     if (stage['类型'] !== '隐藏') {
       const used = new Set(names);
       names = names.map((n, i) => {
@@ -273,7 +285,7 @@ function fightStage(stage, A, ease, opt = {}) {
   if ((stage['限制'] || '').includes('车轮战')) {
     const named = enemies.filter(e => SG.D.H[e]), mobs = enemies.filter(e => !SG.D.H[e]);
     for (const e of named) {
-      const B = [e].concat(mobs.slice(0, 2)).map(x => mkEnemy(x, lv, star, ease)); labelDup(B);
+      const B = [e].concat(mobs.slice(0, 2)).map(x => cycleEnemy(x, lv, star, ease, cycle)); labelDup(B);
       for (const a of A) if (a.alive()) { a.hp = Math.min(a.maxhp, a.hp + a.maxhp * .2); a.status = {}; a.prep = null; }
       const keep = A.filter(a => a.alive());
       if (!keep.length) return out;
@@ -283,7 +295,7 @@ function fightStage(stage, A, ease, opt = {}) {
     }
     out.win = true; return out;
   }
-  const B = labelDup(enemies.map(e => mkEnemy(e, lv, star, ease)));
+  const B = labelDup(enemies.map(e => cycleEnemy(e, lv, star, ease, cycle)));
   out.foes = B;
   apply_limit(stage, A, B);
   const b = new SG.Battle(A, B, log); fixCells(b); txFoe(B, b, opt); out.battles.push(b);
@@ -321,7 +333,8 @@ class Game {
   // ---- 基本 ----
   get D() { return SG.D; }
   maxLv() { return Math.min(70, 50 + 10 * (this.s.cycle - 1)); }
-  goldMul() { return (this.s.cycle >= 2 ? 1.5 : 1) * (this.txHas('岁星') ? 1.5 : 1); }
+  goldMul() { return cycleRules(this.s.cycle).gold * (this.txHas('岁星') ? 1.5 : 1); }
+  clearGold2(typ) { return Math.floor((CFG.gold2_clear[typ] || 0) * cycleRules(this.s.cycle).gold2) + (this.txHas('天狼') ? 1 : 0); }
   // ---- 天象（二周目起每周目三颗，每颗可花 10 兵符换一次） ----
   txList() { if (this.s.cycle < 2) return []; this.ensureTx(); return this.s.tx.on.slice(); }
   txHas(id) { return this.s.cycle >= 2 && !!this.s.tx && this.s.tx.on.includes(id); }
@@ -522,7 +535,7 @@ class Game {
       if (!replay) {
         rew.first = true;
         rew.gold = Math.round(CFG.gold_clear(lv) * (typ === '章末' ? CFG.boss_mult : typ === '隐藏' ? CFG.hidden_mult : 1) * this.goldMul());
-        rew.gold2 = (CFG.gold2_clear[typ] || 0) * (this.s.cycle >= 2 ? 2 : 1) + (this.txHas('天狼') ? 1 : 0);
+        rew.gold2 = this.clearGold2(typ);
         const tl = this.txHas('贪狼');
         const ti = Math.max(0, CFG.drop_tier(ch) - (tl ? 1 : 0));
         const L = D.EQROWS.filter(e => e['档'] === EQ_TIERS[ti] && !e['归属']);
@@ -575,7 +588,7 @@ class Game {
   }
   stagePower(id) {
     const st = this.D.STAGE[id], f = this.foesOf(id), ease = stageEase(st);
-    const B = f.names.map(n => mkEnemy(n, f.lv, f.star, ease)); apply_limit(st, [], B); SG.applyBonds(B);
+    const B = f.names.map(n => cycleEnemy(n, f.lv, f.star, ease, this.s.cycle)); apply_limit(st, [], B); SG.applyBonds(B);
     for (const p of txParts({ tx: this.txList() })) if (p.B) B.forEach(p.B);
     if (tlFull(st, this.s.cycle, { tx: this.txList() })) for (const u of B) { u.maxhp *= 1.10; u.hp *= 1.10; }
     return Math.round(B.reduce((a, u) => a + unitPower(u), 0));

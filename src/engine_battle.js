@@ -81,7 +81,7 @@ class Unit {
   }
   addbuff(k, pct, rounds = -1, tag = null) {
     if (rounds > 0 && SG.REND_FIX && this.battle && this.battle.inRend) rounds += 1;   // V0.7：回合末加的效果要撑到下一回合
-    if (tag) { for (const b of this.buffs) if (b[3] === tag) { b[1] = pct; b[2] = rounds; return; } }
+    if (tag) { for (const b of this.buffs) if (b[3] === tag && b[0] === k) { b[1] = pct; b[2] = rounds; return; } }
     this.buffs.push([k, pct, rounds, tag]);
   }
   flag(k) {
@@ -112,7 +112,7 @@ class Unit {
     if (src && b.log) b.say(`${this.name} 抵抗 ${s}`, { t: 'resist', u: this, s, p: prob, by: src });
     return false;
   }
-  cleanse() { for (const s of CTRL) delete this.status[s]; }
+  cleanse() { for (const s of CTRL.concat(['中毒', '灼烧'])) { delete this.status[s]; delete this.flags[s + '_src']; } }
   dispel() {
     this.buffs = this.buffs.filter(b => b[1] < 0 || (b[2] === -1 && b[3] && b[3].startsWith('perm')));
     this.shield = 0;
@@ -267,7 +267,7 @@ class Battle {
     if (!tgt.alive()) return;
     const amt = tgt.maxhp * pct * (1 + (src ? src.flag('healout') : 0));
     const hp0 = tgt.hp;
-    if (tgt.has('诅咒')) { tgt.hp -= amt; this.say(`${tgt.name} 诅咒 −${Math.trunc(amt)}`, { t: 'hit', u: tgt, d: amt, ab: 0, h0: hp0, h1: Math.max(0, tgt.hp), g: '诅咒' }); return; }
+    if (tgt.has('诅咒')) { this.apply(null, tgt, amt, 'mag', '诅咒', true); return; }
     tgt.hp = Math.min(tgt.maxhp, tgt.hp + amt);
     if (src) src.tally.healed += tgt.hp - hp0;
     this.say(`${tgt.name} 回兵 ${Math.trunc(amt)}`, { t: 'heal', u: tgt, d: tgt.hp - hp0, h0: hp0, h1: tgt.hp, s: src });
@@ -319,7 +319,10 @@ class Battle {
     this.say(`${u.name} 普攻`, { t: 'atk', u, v: t });
     this.damage(u, t, mult, kind, u.flags['ignore'] || 0, u.flags['must_hit'] || false, 'attack');
     this.hook_all('after_attack', u, t);
-    if (u.flags['double_attack'] && t.alive()) this.damage(u, t, mult, kind, 0, false, 'attack');
+    if (u.flags['double_attack'] && u.alive() && !u.has('震慑') && !u.has('缴械')) {
+      const next = t.alive() ? t : this.attack_target(u);
+      if (next) this.damage(u, next, mult, kind, 0, u.flags['must_hit'] || false, 'attack');
+    }
     const sk = u.skill;
     if ((sk && sk.type === '追击' && !u.has('怯战') && !u.has('缴械') && t.alive()) || (sk && sk.type === '追击' && sk.other && !u.has('怯战'))) {
       const rate = sk.rate + u.flag('pursue');
@@ -560,9 +563,10 @@ function run_effect(b, u, eff, ctx) {
   if (!cond_ok(b, u, eff.conds, ctx)) return;
   if (['dmg', 'st', 'dot', 'buff', 'heal', 'shield', 'dispel', 'cleanse'].includes(op) && a.length && a[0] !== 'last') ctx.last = targets(b, u, a[0], ctx);
   if (op === 'dmg') {
-    const T = targets(b, u, a[0], ctx), mult = (SG.FX7 && a[0] === 'src' && u.flags['counter_mul']) ? u.flags['counter_mul'] : parseFloat(a[1]), kind = a.slice(2).includes('mag') ? 'mag' : 'phys';
+    const T = a[0] === 'last' ? targets(b, u, 'last', ctx) : ctx.last, mult = (SG.FX7 && a[0] === 'src' && u.flags['counter_mul']) ? u.flags['counter_mul'] : parseFloat(a[1]), kind = a.slice(2).includes('mag') ? 'mag' : 'phys';
     const ig = a.includes('ig50') ? .5 : (a.includes('ig20') ? .2 : 0), hit = a.includes('hit');
-    for (const t of T) if (t.alive()) b.damage(u, t, mult, kind, ig, hit, ctx._tag || 'skill');
+    try { for (const t of T) if (t.alive()) b.damage(u, t, mult, kind, ig, hit, ctx._tag || 'skill'); }
+    finally { u.buffs = u.buffs.filter(v => v[3] !== '本次暴击'); }
   } else if (op === 'st') {
     const T = a[0] !== 'last' ? ctx.last : targets(b, u, 'last', ctx), s = a[1], r = parseInt(a[2]) + ((SG.FX7 && s === '计穷' && typeof u.flags['计穷加'] === 'number') ? u.flags['计穷加'] : 0), p = a.length > 3 ? parseFloat(a[3]) / 100 : 1.0;
     for (const t of T) if (t.alive() && t.add_status(s, r, p, u) && s === '挑衅') t.taunt_by = u;
@@ -575,15 +579,15 @@ function run_effect(b, u, eff, ctx) {
     if (vs.length) { const [mode, who] = vs[0].split(':'); for (const t of T) (t.flags['vs'] = t.flags['vs'] || []).push([mode, who, pct]); return; }
     for (const t of T) {
       if (k === 'maxhp') { t.maxhp *= (1 + pct); t.hp *= (1 + pct); }
-      else t.addbuff(k, pct, r, r === -1 ? 'perm' + ctx._eid : null);
+      else t.addbuff(k, pct, r, k === 'crit' && r === 1 && ctx._tag === 'pursue' ? '本次暴击' : r === -1 ? 'perm' + ctx._eid : null);
     }
     if (b.log && T.length) b.say(`${u.name} 加成 ${k}`, { t: 'buff', u, k, p: pct, r, tt: T.slice(), from: String(ctx._eid || '').split('#')[0] });
   } else if (op === 'heal') {
-    for (const t of targets(b, u, a[0], ctx)) b.heal(u, t, parseFloat(a[1]) / 100);
+    for (const t of (a[0] === 'last' ? targets(b, u, 'last', ctx) : ctx.last)) b.heal(u, t, parseFloat(a[1]) / 100);
   } else if (op === 'shield') {
-    for (const t of targets(b, u, a[0], ctx)) { if (parseFloat(a[1]) === 0) t.shield = 0; else b.shieldUp(t, parseFloat(a[1]) / 100, u); }
+    for (const t of (a[0] === 'last' ? targets(b, u, 'last', ctx) : ctx.last)) { if (parseFloat(a[1]) === 0) t.shield = 0; else b.shieldUp(t, parseFloat(a[1]) / 100, u); }
   } else if (op === 'dmgself') {
-    u.hp -= u.maxhp * parseFloat(a[0]) / 100;
+    b.apply(null, u, u.maxhp * parseFloat(a[0]) / 100, 'phys', '自伤', true);
   } else if (op === 'reflect') {
     const src = ctx.src;
     if (src && src.alive() && ctx.ab > 0 && ctx.tag !== '反弹') b.apply(u, src, ctx.ab * parseFloat(a[0]) / 100, 'phys', '反弹');   // V0.7：原来要「挨打后还有盾且有伤害漏过来」，两条互斥，从没反弹过；改成护盾挡下多少、按比例弹回去
@@ -591,9 +595,9 @@ function run_effect(b, u, eff, ctx) {
     const AA = targets(b, u, a[0], ctx), T = targets(b, u, a[1], ctx);
     for (const x of AA) for (const t of T) b.damage(x, t, parseFloat(a[2]), 'phys', 0, false, 'pursue');
   } else if (op === 'dispel') {
-    for (const t of targets(b, u, a[0], ctx)) t.dispel();
+    for (const t of (a[0] === 'last' ? targets(b, u, 'last', ctx) : ctx.last)) t.dispel();
   } else if (op === 'cleanse') {
-    for (const t of targets(b, u, a[0], ctx)) t.cleanse();
+    for (const t of (a[0] === 'last' ? targets(b, u, 'last', ctx) : ctx.last)) t.cleanse();
   } else if (op === 'revive') {
     u.hp = u.maxhp * parseFloat(a[0]) / 100; ctx._revived = true; b.say(`${u.name} 免死`, { t: 'revive', u, h1: u.hp });
   } else if (op === 'flag') {
@@ -695,7 +699,8 @@ reg('马超后期', (b, u) => { if (b.round >= 4) { u.flags['神威'] = Math.min
 function _huangzhong(cap, step, n = 1) {
   return (b, u) => {
     u.addbuff('crit', .4, 1, '穿杨');
-    for (const t of b.pick(u, 'stat_min', n, 'def')) b.damage(u, t, 2.4 + Math.min(cap, step * (b.round - 1)), 'phys', 0, true);
+    try { for (const t of b.pick(u, 'stat_min', n, 'def')) b.damage(u, t, 2.4 + Math.min(cap, step * (b.round - 1)), 'phys', 0, true); }
+    finally { u.buffs = u.buffs.filter(v => v[3] !== '穿杨'); }
   };
 }
 reg('黄忠老当益壮V7', _huangzhong(1.2, .15, 2));
@@ -725,7 +730,7 @@ function _jiangwei(cap, step, n = 2) {
 }
 reg('姜维九伐V7', _jiangwei(1.2, .2, 3));
 reg('姜维九伐', _jiangwei(.9, .15)); reg('姜维九伐20', _jiangwei(1.2, .2));
-reg('曹操抽兵', (b, u) => { const m = argmax(b.allies(u), x => x.hp); if (m !== u) { const a = m.maxhp * .03; m.hp -= a; u.hp = Math.min(u.maxhp, u.hp + a); } });
+reg('曹操抽兵', (b, u) => { const m = argmax(b.allies(u), x => x.hp); if (m !== u) { const a = m.hp * .03; m.hp -= a; u.hp = Math.min(u.maxhp, u.hp + a); } });
 reg('曹操负人', (b, u) => { const n = u.flags['负人'] || 0; if (n < 3) { u.flags['负人'] = n + 1; for (const a of b.allies(u)) a.addbuff('atk', .04 * (n + 1), -1, 'perm负人'); } });
 function _xuchu(d) { return (b, u) => { u.addbuff('def', d, 2, '裸衣'); u.flags['裸衣中'] = 2; b.damage(u, first(b.pick(u, 'random')), 3.0 + (u.flags['裸衣加'] || 0)); }; }
 reg('许褚裸衣', _xuchu(-.30)); reg('许褚裸衣15', _xuchu(-.15));
@@ -779,6 +784,18 @@ reg('太史慈神射', (b, u, ctx) => {
 // V0.6 修：原来读的「围|回合」没人写，从不生效；改读每回合挨打计数
 reg('吕布围攻', (b, u) => { if ((u.flags['挨|' + b.round] || 0) === 3) u.addbuff('atk', .15, 2, '三英'); });
 reg('吕布围攻2', (b, u) => { if ((u.flags['挨|' + b.round] || 0) === 2) u.addbuff('atk', .15, 2, '三英'); });
+// 吕布：每回合受围攻一次反击；反击标签不再触发反击链。
+function lvbuCounter(threshold, mult) {
+  return (b, u, ctx) => {
+    if (!ctx.src || ctx.src.side === u.side || !['attack', 'skill', 'pursue'].includes(ctx.tag)) return;
+    if ((u.flags['挨|' + b.round] || 0) < threshold || u.flags['飞将反击'] === b.round) return;
+    u.flags['飞将反击'] = b.round;
+    u.addbuff('atk', .15, 2, '三英');
+    if (ctx.src.alive()) b.damage(u, ctx.src, mult, 'phys', .2, false, '反击');
+  };
+}
+reg('吕布飞将', lvbuCounter(2, 1.0));
+reg('吕布飞将4', lvbuCounter(1, 1.2));
 reg('董卓吸血', (b, u, ctx) => { if (['attack', 'skill', 'pursue'].includes(ctx.tag)) u.hp = Math.min(u.maxhp, u.hp + (ctx.dmg || 0) * ((SG.FX7 && typeof u.flags['吸血'] === 'number') ? u.flags['吸血'] : .25)); });
 reg('华佗刮骨', (b, u, ctx) => { const d = ctx.dead; if (!u.once.has('刮骨')) { u.once.add('刮骨'); d.hp = d.maxhp * .3; b.say(`华佗救回 ${d.name}`, { t: 'revive', u: d }); } });
 reg('华佗刮骨2', (b, u, ctx) => { const d = ctx.dead, n = u.flags['刮骨n'] || 0; if (n < 2) { u.flags['刮骨n'] = n + 1; d.hp = d.maxhp * .3; b.say(`华佗救回 ${d.name}`, { t: 'revive', u: d }); } });

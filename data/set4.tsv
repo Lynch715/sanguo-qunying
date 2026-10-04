@@ -27,7 +27,7 @@
 太史慈	追击 70 | custom(太史慈神射)
 甘宁	瞬发 35f | dmg(e5,1.2)@first; dmg(e3,1.2)@notfirst; dmg(last,0.4)@fastest; setup:buff(self,dodge,25,2)
 吕蒙	准备 40 | dmg(ehpmax,2.8); st(last,缴械,2); myprep:st(self,隐身,1)
-吕布	被动 | setup:flag(double_attack); setup:buff(self,dmgin,10); hit:custom(吕布围攻2); setup:flag(ignore,0.25)
+吕布	被动 | setup:flag(double_attack); setup:buff(self,atk,10); hit:custom(吕布飞将4); setup:flag(ignore,0.3)
 董卓	被动 | dealt:custom(董卓吸血); setup:flag(吸血,0.5); setup:buff(self,def,15); setup:buff(self,dmgin,-20); setup:buff(self,atk,12)
 貂蝉	瞬发 40 | st(eatk2,迷惑,2); dmg(last,1.0,mag)
 华佗	瞬发 55 | heal(ahpmin,12); cleanse(last); allydeath:custom(华佗刮骨2)
