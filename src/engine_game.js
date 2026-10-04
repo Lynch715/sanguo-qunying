@@ -594,24 +594,42 @@ class Game {
     return Math.round(B.reduce((a, u) => a + unitPower(u), 0));
   }
   itemScore(n, row) {
-    const main = this.D.H[n]['定位'] === '武将' ? 'atk' : 'int';
+    // 以人物当前等级、星级的裸装能力计算实际属性增量，避免旧配装影响推荐。
+    const h = this.hero(n), u = mkHeroUnit(n, h.lv, h.star);
+    const main = u.base.atk >= u.base.int ? 'atk' : 'int';
+    const weights = { atk: main === 'atk' ? 1 : .15, int: main === 'int' ? 1 : .15, def: .7, agi: .45 };
     const own = row['归属'] === n;
-    let v = parseFloat(row['固定']) * (own ? 1.5 : 1) * (row['槽'] === '武器' && row['维'] !== main ? 0.3 : 1) + parseFloat(row['百分比']) * 4;
-    if (own) v += 200;   // 本人专属优先，凑两件四件
-    return v;
+    const gain = (+row['固定'] || 0) * (own ? 1.5 : 1) + u.base[row['维']] * (+row['百分比'] || 0) / 100;
+    return gain * (weights[row['维']] || 0);
   }
-  autoEquip(names) {
-    names = names.filter(n => n && this.hero(n)).sort((a, b) => this.power(b) - this.power(a));
-    const team = new Set(names);
+  compareItems(n, a, b) {
+    const ra = this.D.EQID[a.id], rb = this.D.EQID[b.id];
+    return Number(rb['归属'] === n) - Number(ra['归属'] === n)
+      || this.itemScore(n, rb) - this.itemScore(n, ra) || a.uid - b.uid;
+  }
+  autoEquip(names, gear = this.s.gear) {
+    const barePower = n => { const h = this.hero(n); return unitPower(mkHeroUnit(n, h.lv, h.star)); };
+    names = [...new Set(names.filter(n => n && this.hero(n)))].sort((a, b) => barePower(b) - barePower(a));
+    const used = new Set();
+    const assign = (n, sl, it) => {
+      for (const slots of Object.values(gear)) for (const k of SLOTS) if (slots[k] === it.uid) slots[k] = null;
+      (gear[n] || (gear[n] = {}))[sl] = it.uid;
+      used.add(it.uid);
+    };
+    // 先给每个人分配自己的专属，不让先配装的将领抢走他人的套装。
     for (const n of names) for (const sl of SLOTS) {
-      let best = null, bv = -1;
-      for (const it of this.s.bag) {
-        const row = this.D.EQID[it.id]; if (row['槽'] !== sl) continue;
-        const who = this.equippedBy(it.uid);
-        if (who && who !== n && team.has(who) && names.indexOf(who) < names.indexOf(n)) continue;   // 排在前面的人已经穿上了
-        const v = this.itemScore(n, row); if (v > bv) { bv = v; best = it; }
-      }
-      if (best) this.equip(n, best.uid);
+      const own = this.s.bag.filter(it => this.D.EQID[it.id]['槽'] === sl && this.D.EQID[it.id]['归属'] === n && !used.has(it.uid))
+        .sort((a, b) => this.compareItems(n, a, b));
+      if (own.length) assign(n, sl, own[0]);
+    }
+    for (const n of names) for (const sl of SLOTS) {
+      if (used.has((gear[n] || {})[sl])) continue;
+      const candidates = this.s.bag.filter(it => {
+        const row = this.D.EQID[it.id];
+        return row['槽'] === sl && !used.has(it.uid) && (!row['归属'] || row['归属'] === n || !this.hero(row['归属']));
+      }).sort((a, b) => this.compareItems(n, a, b));
+      if (candidates.length) assign(n, sl, candidates[0]);
+      else if (gear[n]) gear[n][sl] = null;
     }
   }
   stripTeam(names) { for (const n of names) if (n && this.s.gear[n]) for (const sl of SLOTS) this.s.gear[n][sl] = null; }

@@ -184,5 +184,5 @@ function recordGroups(p) {
   });
   return [...map.values()];
 }
-SG.PVP = { state, snapshot, validate, encode, decode, identity, fight, equip, recordGroups, PREFIX, RULE };
+SG.PVP = { state, snapshot, validate, encode, decode, identity, fight, equip, recordGroups, autoEquip: g => g.autoEquip(state(g).cells, state(g).gear), PREFIX, RULE };
 })();

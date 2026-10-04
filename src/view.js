@@ -455,7 +455,7 @@ function slotPicker(n, sl) {
   const cur = (G.s.gear[n] || {})[sl];
   const items = G.s.bag.filter(it => D.EQID[it.id]['槽'] === sl)
     .map(it => ({ it, row: D.EQID[it.id], who: G.equippedBy(it.uid) }))
-    .sort((a, b) => eqTi(b.row) - eqTi(a.row) || (b.row['归属'] === n) - (a.row['归属'] === n) || parseFloat(b.row['固定']) - parseFloat(a.row['固定']));
+    .sort((a, b) => G.compareItems(n, a.it, b.it));
   const list = items.map(({ it, row, who }) => `<div class="item"><span>${eqSeal(row)}</span><div class="grow"><div class="en">${esc(row['名'])}${row['归属'] ? `<span class="tiny muted">　${esc(row['归属'])}专属</span>` : ''}</div>
       <div class="ed">${eqStatTxt(row, n)}${row['DSL'] && D0.sets[row['归属']] ? '　' + esc(sl === '武器' ? D0.sets[row['归属']].w : sl === '宝物' ? D0.sets[row['归属']].t : '') : ''}${who ? `　<span style="color:var(--zhu)">${esc(who)}穿着</span>` : ''}</div></div>
       ${it.uid === cur ? '<span class="small muted">穿着</span>' : `<span class="btn sm" data-a="equip" data-uid="${it.uid}">穿</span>`}</div>`).join('');
@@ -1028,7 +1028,7 @@ const ACT = {
       ${L.map(n => `<div class="item"><span>${por(n, 's')}</span><div class="grow"><div class="en">${esc(n)}</div><div class="ed"><span class="stars">${stars(before[n])}</span> → <span class="stars">${stars(G.s.heroes[n].star)}</span>　剩碎片 ${G.s.heroes[n].frag}</div></div></div>`).join('')}
       <div class="btns"><div class="btn main" data-a="close">好</div></div>`);
   },
-  'auto-equip': () => { G.autoEquip(G.s.formation); save(); render(); toast('按战力从高到低配好了'); },
+  'auto-equip': () => { G.autoEquip(G.s.formation); save(); render(); toast('专属优先，已按人物能力配装'); },
   'strip-team': () => { G.stripTeam(G.s.formation); save(); render(); toast('阵上的人装备都卸了'); },
   'train-max': () => { const n = G.trainMax(V.hero); if (!n) toast(G.hero(V.hero).lv >= G.maxLv() ? '已到上限' : '钱不够'); else toast(`练了 ${n} 级`); save(); render(); },
   'refight': () => { const id = V.battle && V.battle.out.stageId; if (!id) return; const r = G.fight(id, G.s.formation); if (r.err) { toast(r.err); return; } quietAch(r.ach); save(); Play.begin({ res: r.res, rew: r.rew, ach: r.ach, stageId: id }); },

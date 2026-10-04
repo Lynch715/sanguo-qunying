@@ -33,7 +33,7 @@ SG.VIEWS['pvp-form'] = () => {
   const s = p();
   return `${title('PVP 阵容', s.cells.filter(Boolean).length + ' / 9 人')}<div class="card small"><label for="pvp-name">主公姓名</label><div class="row" style="gap:8px"><input id="pvp-name" class="pvp-input" value="${esc(s.name)}" placeholder="请输入姓名，最多 16 字" maxlength="32"><div class="btn sm" data-a="pvp-name">保存</div></div><div class="tiny muted">培养实时沿用，站位与配装独立保存。点将领可换人或配装。</div></div>
     <div class="grid9 pvp-grid">${s.cells.map((n, i) => `${i % 3 === 0 ? `<div class="rowlab" style="grid-column:1/4">${['前排', '中排', '后排'][i / 3]}</div>` : ''}${ownCard(n, i)}`).join('')}</div>
-    <div class="btns"><div class="btn sm" data-a="pvp-copy-team">复制闯关阵容与配装</div><div class="btn sm" data-a="pvp-auto">补满阵容</div></div>
+    <div class="btns"><div class="btn sm" data-a="pvp-copy-team">复制闯关阵容与配装</div><div class="btn sm" data-a="pvp-auto">补满阵容</div><div class="btn sm" data-a="pvp-auto-equip">一键装备</div></div>
     <div class="btns"><div class="btn main" data-a="pvp-code">生成对战码</div></div>${back}`;
 };
 SG.VIEWS['pvp-challenge'] = () => `${title('开始对战')}<div class="small muted">粘贴朋友的 PVP 对战码，先查看阵容再开战。</div><textarea id="pvp-import" class="pvp-code" placeholder="把对战码粘贴在这里"></textarea><div class="btns"><div class="btn main" data-a="pvp-preview">查看对手</div></div>${back}`;
@@ -54,7 +54,7 @@ function cellSheet(i) {
   }).join('')}<div class="tiny muted">同一件装备只供一位 PVP 将领使用；不影响闯关配装。</div>`);
 }
 function gearSheet(n, sl) {
-  openModal(`<div class="shead">${esc(n)} · ${sl}<span class="x" data-a="close">关闭</span></div><div class="btns"><div class="btn sm" data-a="pvp-wear" data-n="${esc(n)}" data-sl="${sl}" data-uid="">卸下</div></div>${g().s.bag.filter(it => SG.D.EQID[it.id]['槽'] === sl).map(it => {
+  openModal(`<div class="shead">${esc(n)} · ${sl}<span class="x" data-a="close">关闭</span></div><div class="btns"><div class="btn sm" data-a="pvp-wear" data-n="${esc(n)}" data-sl="${sl}" data-uid="">卸下</div></div>${g().s.bag.filter(it => SG.D.EQID[it.id]['槽'] === sl).sort((a, b) => g().compareItems(n, a, b)).map(it => {
     const e = SG.D.EQID[it.id], who = Object.keys(p().gear).find(x => p().gear[x][sl] === it.uid);
     return `<div class="card small" data-a="pvp-wear" data-n="${esc(n)}" data-sl="${sl}" data-uid="${it.uid}">${eqSeal(e)} <b>${esc(e['名'])}</b><div class="tiny muted">${U.KEYCN[e['维']] || esc(e['维'])} +${esc(e['固定'])}${+e['百分比'] ? ' +' + esc(e['百分比']) + '%' : ''}${who ? ' · PVP：' + esc(who) + '（选择后转移）' : ''}</div></div>`;
   }).join('') || '<div class="empty">没有此槽位装备</div>'}`);
@@ -74,6 +74,7 @@ Object.assign(SG.ACT, {
   'pvp-gear': el => gearSheet(el.dataset.n, el.dataset.sl),
   'pvp-wear': el => { try { SG.PVP.equip(g(), el.dataset.n, el.dataset.sl, el.dataset.uid === '' ? null : +el.dataset.uid); SG.save(); cellSheet(p().cells.indexOf(el.dataset.n)); SG.render(); } catch (e) { toast(e.message); } },
   'pvp-copy-team': () => U.ask('复制闯关阵容', '替换当前 PVP 站位和配装？', '复制', () => { const s = p(); s.cells = g().s.formation.slice(); s.gear = JSON.parse(JSON.stringify(g().s.gear)); commit(); toast('已复制'); }),
+  'pvp-auto-equip': () => { SG.PVP.autoEquip(g()); commit(); toast('专属优先，已按人物能力配装'); },
   'pvp-auto': () => { const s = p(), names = Object.keys(g().s.heroes).filter(n => !s.cells.includes(n)).sort((a, b) => g().power(b) - g().power(a)); for (let i = 0; i < 9; i++) if (!s.cells[i]) s.cells[i] = names.shift() || null; commit(); if (s.cells.includes(null)) toast('将领不足九人，先去招贤'); },
   'pvp-code': async () => {
     if (!nameSave(false)) return;
