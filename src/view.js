@@ -443,7 +443,7 @@ VIEWS.hero = () => {
       <div class="small muted">碎片 ${s.frag}${s.star < G.maxStar() ? `　升星要 ${need}` : ''}</div>
     </div></div>
     <div class="stat4">${['atk', 'def', 'int', 'agi'].map(k => `<div><span>${KEYCN[k]}</span><span><b>${Math.round(p[k])}</b><small>+${h[grow[k]]}/级</small></span></div>`).join('')}</div>
-    ${h['生平'] ? `<details class="bio"><summary class="bh kai">生平</summary>${h['生平'].split('｜').map(t => `<p>${esc(t)}</p>`).join('')}</details>` : ''}
+    ${h['生平'] ? `<details class="bio"><summary class="bio-toggle"><span class="kai">武将生平</span><span class="bio-toggle-hint"><span class="bio-expand">展开</span><span class="bio-collapse">收起</span><i class="bio-chevron" aria-hidden="true"></i></span></summary><div class="bio-body">${h['生平'].split('｜').map(t => `<p>${esc(t)}</p>`).join('')}</div></details>` : ''}
     ${s.form==='god'&&SG.GodUI?SG.GodUI.skill(n):skillHtml(n)}
     ${SG.GodUI?SG.GodUI.hero(n):''}
     <div class="btns">

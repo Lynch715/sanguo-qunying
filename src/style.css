@@ -432,4 +432,21 @@ input,textarea,select{font-size:16px!important}
 /* 神形态保留整张立绘与兵器轮廓。 */
 .god-grid {align-items:stretch}.god-card{min-width:0;text-align:center}.god-card .por{height:220px;width:100%;max-width:165px;margin:0 auto}.god-card .por img{object-fit:contain}.god-card p{text-align:left}.god-panel p{margin:8px 0}@media(max-width:480px){.god-card .por{height:180px}.god-card{padding:8px}}
 
-.bio summary{cursor:pointer;list-style:disclosure-closed}.bio[open] summary{list-style:disclosure-open}.bio summary::marker{color:var(--zhu)}
+/* 神将操作区对齐，同列按钮逐行显示。 */
+.god-card{display:flex;flex-direction:column}
+.god-card-footer{margin-top:auto;padding-top:12px}
+.god-card .god-actions{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:36px 36px;gap:8px;margin:10px 0 0}
+.god-actions .btn{display:flex;align-items:center;justify-content:center;width:100%;min-width:0;padding:0 6px;margin:0;box-sizing:border-box;white-space:nowrap}
+.god-action-spacer{height:36px}
+/* 生平折叠采用与卡片一致的整行标题。 */
+details.bio{padding:0;border:1px solid var(--ink-4);border-radius:6px;margin:12px 0;background:rgba(255,255,255,.22);overflow:hidden}
+.bio .bio-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;cursor:pointer;list-style:none;color:var(--ink);font-size:.95em}
+.bio .bio-toggle::-webkit-details-marker{display:none}
+.bio-toggle-hint{display:flex;align-items:center;gap:8px;font-size:.75em;color:var(--ink-3)}
+.bio-chevron{width:7px;height:7px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);transition:transform .15s}
+.bio-collapse{display:none}.bio[open] .bio-collapse{display:inline}.bio[open] .bio-expand{display:none}.bio[open] .bio-chevron{transform:rotate(225deg)}
+.bio[open] .bio-toggle{border-bottom:1px solid var(--ink-4)}
+.bio-body{padding:8px 13px 12px}.bio .bio-body p{margin:7px 0}
+.bio-toggle:focus-visible{outline:2px solid var(--zhu);outline-offset:-3px}
+.god-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(min-width:800px){.god-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
