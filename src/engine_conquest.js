@@ -222,7 +222,7 @@ class World {
   // 守城：names 是上阵的人（null = 自动：守将 + 最强 8 人），返回 { A, B, gb } 给调用方开打
   defenseUnits(plan, names) {
     const st = this.st, c = st.city[plan.best], g = c.guard;
-    if (!names) {let chosen=false;names=this.defenders(plan.best).filter(n=>{if(this.p.heroes[n]?.form!=='god')return true;if(chosen)return false;chosen=true;return true;});}
+    if (!names) names=this.defenders(plan.best);
     const A = this.my_units(names);
     let gb = g && names.includes(g) ? 1 + CQ.guard_bonus * Math.floor(this.p.cqStat4(g)['统率'] / 10) : 1;
     if (!names.includes(g) && g) gb = 1 + CQ.guard_bonus * Math.floor(this.p.cqStat4(g)['统率'] / 10);   // 守将在城里就有加成
@@ -302,7 +302,7 @@ class ConquestGame extends SG.Game {
   cqStat4(n) { const h = SG.D.H[n], s = this.s.heroes[n], k = 1 + SG.STARK[s.star], o = {}; for (const [c, g] of [['武力', '武成长'], ['统率', '统成长'], ['智力', '智成长'], ['速度', '速成长']]) o[c] = (parseFloat(h[c]) + parseFloat(h[g]) * (s.lv - 1)) * k; return o; }
   cqHp(n) { const s = this.s.heroes[n]; return s.hp / (s.lv * 1000); }
   cqSetHp(n, r) { const s = this.s.heroes[n]; if (s) s.hp = r * s.lv * 1000; }
-  cqUnits(names) { if(SG.God&&!SG.God.check(this,names))throw Error('每队最多上阵一位神将');return names.map(n => this.unitOf(n)); }
+  cqUnits(names) { return names.map(n => this.unitOf(n)); }
   // 规则差异：招贤池锁本阵营 + 无阵营；征兵每千兵 2×等级；铁匠铺不按章封顶
   drawPoolFor(t) { const me = this.world.st.me; return SG.D.POOL[t].filter(n => [me, '无'].includes(SG.D.H[n]['阵营'])); }
   draw(k) {

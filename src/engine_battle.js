@@ -165,7 +165,6 @@ SG.GLOBAL_HOOKS_EXTRA = GLOBAL_HOOKS_EXTRA;
 
 class Battle {
   constructor(A, B, log = false) {
-    if ([A,B].some(t=>t.filter(u=>u.form==='god').length>1)) throw new Error('每队最多上阵一位神将');
     this.teams = [A, B]; this._all = A.concat(B); this.round = 0; this.stats = { kills: [], counter: [0, 0] }; this.log = log; this.lines = []; this.events = []; this.flags_round = {};
     this.teams.forEach((t, s) => t.forEach((u, i) => { u.team = t; u.side = s; u.idx = i; u.battle = this; }));
     this.hooks = [];

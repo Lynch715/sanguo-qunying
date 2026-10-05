@@ -255,27 +255,23 @@ function skill(n){
  return sk;
 }
 function apply(u){const m=DATA[u.name];if(!m)throw Error('此人物尚无神形态');u.form='god';u.label='神·'+u.name;u.base[m.primary]*=1.08;u.base[m.secondary]*=1.04;u.skill=skill(u.name);return u;}
-function check(g,names){return names.filter(n=>n&&g.hero(n)?.form==='god').length<=1;}
 function godState(g){const s=g.s.gods||(g.s.gods={heroes:{},trials:{}});s.heroes=s.heroes||{};s.trials=s.trials||{};return s;}
 function progress(g,n){if(!DATA[n])throw Error('此人物尚无神形态');const s=godState(g);return s.heroes[n]||(s.heroes[n]={qualified:false,awakened:false});}
 function dayKey(date=new Date()){return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');}
 function weekKey(date=new Date()){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()-(d.getDay()+6)%7);return dayKey(d);}
-SG.God={DATA,apply,skill,cleanse,check,progress,dayKey,weekKey,context,
+SG.God={DATA,apply,skill,cleanse,progress,dayKey,weekKey,context,
  portrait:(n,g,form)=>((form??g?.hero(n)?.form)==='god'?'神·':'')+n,
  tickBurn(b,t){const u=t.flags.godBurn;context(b,{aoe:true,chain:true,active:false},()=>b.damage(u,t,.25,'mag',0,true,'神灼烧'));}
 };
 const P=SG.Game.prototype;
 P.godProgress=function(n){return progress(this,n);};
 P.awaken=function(n){const h=this.hero(n),p=progress(this,n);if(this.kind==='conquest'||this.s.cycle<2)return {err:'二周目闯关开放觉醒'};if(p.awakened)return {err:'已觉醒'};if(!h||h.lv<70||h.star<5||!p.qualified)return {err:'需要70级、5星并通关所属封神试炼'};if(this.s.gold<1000000)return {err:'需要100万金币'};this.s.gold-=1000000;p.awakened=true;return {ok:true};};
-P.setGodForm=function(n,form){const h=this.hero(n);if(!h||!DATA[n]||!['normal','god'].includes(form))return {err:'形态无效'};if(form==='god'&&!progress(this,n).awakened)return {err:'尚未觉醒'};if(form==='god'){
- const formations=[this.s.formation,this.s.pvp?.cells].filter(Boolean);if(formations.some(F=>F.includes(n)&&F.some(x=>x!==n&&this.hero(x)?.form==='god')))return {err:'每队最多上阵一位神将，请先调整阵容'};
- }h.form=form;return {ok:true};};
+P.setGodForm=function(n,form){const h=this.hero(n);if(!h||!DATA[n]||!['normal','god'].includes(form))return {err:'形态无效'};if(form==='god'&&!progress(this,n).awakened)return {err:'尚未觉醒'};h.form=form;return {ok:true};};
 P.godTrial=function(n,cells,opt={}){
  if(this.kind==='conquest'||this.s.cycle<2)return {err:'二周目闯关开放封神试炼'};
  const h=this.hero(n);if(!DATA[n]||!h||h.lv<70||h.star<5)return {err:'试炼对象须达到70级、5星'};
  if(!Array.isArray(cells)||cells.length!==9)return {err:'阵容须为九宫站位'};
  const names=cells.filter(Boolean);if(!names.includes(n)||new Set(names).size!==names.length||names.some(x=>!this.hero(x)))return {err:'试炼须带上该将，且不可重复上阵'};
- if(!check(this,names))return {err:'每队最多上阵一位神将'};
  if(names.some(x=>this.hero(x).hp<1))return {err:'有人没兵了，先征兵'};
  const faction=DATA[n].faction,foes=Object.keys(DATA).filter(x=>DATA[x].faction===faction);
  const A=names.map(x=>this.unitOf(x,true)),B=foes.map(x=>SG.mkHeroUnit(x,75,5,[],null,x===n?'god':'normal'));

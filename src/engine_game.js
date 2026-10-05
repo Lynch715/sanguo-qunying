@@ -524,7 +524,6 @@ class Game {
     const picks = []; cells.forEach((n, i) => { if (n && this.hero(n)) picks.push([n, i]); });
     if (!picks.length) return { err: '阵上没人' };
     if (new Set(picks.map(p=>p[0])).size !== picks.length) return {err:'同一人物不能重复上阵'};
-    if (SG.God && !SG.God.check(this,picks.map(p=>p[0]))) return {err:'每队最多上阵一位神将'};
     if (picks.length > lim.max) return { err: `这关只能带 ${lim.max} 人` };
     if (picks.some(([n]) => this.hero(n).hp < 1)) return { err: '有人没兵了，先征兵' };
     const replay = this.isCleared(id);

@@ -69,7 +69,6 @@ function validate(raw) {
     if (h.form === 'god' && !SG.God?.DATA[h.n]) fail('神形态资料无效');
     return { n: h.n, lv: h.lv, star: h.star, eq, ...(h.form === 'god' ? { form: 'god' } : {}) };
   });
-  if (team.filter(h => h.form === 'god').length > 1) fail('每队最多上阵一位神将');
   return { kind: 'pvp', v: RULE, owner: raw.owner, name: raw.name.trim(), team };
 }
 function snapshot(g) {
@@ -84,22 +83,23 @@ function snapshot(g) {
     }) };
   }) });
 }
-// 码的字节布局：[字典版][布局位：bit0 稀疏装备、bit1 含神将][姓名字节数] UUID 16 字节 姓名 位字段阵容 校验 4 字节。
-// 位字段：有神将先 4 位神将位置；每人 将领 9 位、等级 7 位、星级 3 位、四槽装备（稀疏：1 位有无 + 编号；全量：编号+1）。
+// 码的字节布局：[字典版][布局位：bit0 稀疏装备、bit1 单神将、bit2 多神将][姓名字节数] UUID 16 字节 姓名 位字段阵容 校验 4 字节。
+// 位字段：单神将先 4 位神将位置，多神将先 9 位形态标记；每人 将领 9 位、等级 7 位、星级 3 位、四槽装备（稀疏：1 位有无 + 编号；全量：编号+1）。
 const CAT = SG.PVP_CATALOG;
 const widths = CAT.gear.map(ids => Math.ceil(Math.log2(ids.length + 1)));
 const GEAR_BITS = 9 * widths.reduce((a, b) => a + b, 0);
-const MAX_BYTES = 3 + 16 + 64 + Math.ceil((4 + 9 * 19 + GEAR_BITS) / 8) + 4;
+const MAX_BYTES = 3 + 16 + 64 + Math.ceil((9 + 9 * 19 + GEAR_BITS) / 8) + 4;
 const to64 = bytes => btoa(String.fromCharCode(...bytes));
 function encode(raw) {
   const s = validate(raw);
   if (s.team.some(h => !CAT.heroes.includes(h.n) || h.eq.some((id, i) => id !== null && !CAT.gear[i].includes(id)))) fail('阵容里有对战码暂不支持的将领或装备');
   const name = new TextEncoder().encode(s.name);
   const sparseBits = 36 + s.team.reduce((a, h) => a + h.eq.reduce((n, id, i) => n + (id === null ? 0 : widths[i]), 0), 0);
-  const sparse = sparseBits < GEAR_BITS, godIndex = s.team.findIndex(h => h.form === 'god');
+  const sparse = sparseBits < GEAR_BITS, godIndex = s.team.findIndex(h => h.form === 'god'), multiGod = s.team.filter(h => h.form === 'god').length > 1;
   const bits = [];
   const put = (value, width) => { for (let i = width - 1; i >= 0; i--) bits.push((value >>> i) & 1); };
-  if (godIndex >= 0) put(godIndex, 4);
+  if (multiGod) s.team.forEach(h => put(h.form === 'god' ? 1 : 0, 1));
+  else if (godIndex >= 0) put(godIndex, 4);
   for (const h of s.team) {
     put(CAT.heroes.indexOf(h.n), 9); put(h.lv - 1, 7); put(h.star - 1, 3);
     h.eq.forEach((id, i) => {
@@ -108,7 +108,7 @@ function encode(raw) {
     });
   }
   const bytes = new Uint8Array(3 + 16 + name.length + Math.ceil(bits.length / 8));
-  bytes.set([CAT.v, (sparse ? 1 : 0) + (godIndex >= 0 ? 2 : 0), name.length]);
+  bytes.set([CAT.v, (sparse ? 1 : 0) + (multiGod ? 4 : godIndex >= 0 ? 2 : 0), name.length]);
   const hex = s.owner.replace(/-/g, '');
   for (let i = 0; i < 16; i++) bytes[3 + i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   bytes.set(name, 19);
@@ -125,7 +125,7 @@ function decode(code) {
   if (bytes.length < 24 || bytes.length > MAX_BYTES) fail('对战码长度无效');
   const body = bytes.slice(0, -4);
   if (!checksum(body).every((b, i) => b === bytes[bytes.length - 4 + i])) fail('对战码不完整或已损坏');
-  if (body[0] !== CAT.v || body[1] > 3 || body[2] < 1 || body[2] > 64) fail('对战码版本或姓名无效');
+  if (body[0] !== CAT.v || body[1] > 5 || body[2] < 1 || body[2] > 64) fail('对战码版本或姓名无效');
   const hex = Array.from(body.slice(3, 19), b => b.toString(16).padStart(2, '0')).join('');
   const owner = [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-');
   let name;
@@ -136,7 +136,7 @@ function decode(code) {
     let value = 0; for (let i = 0; i < width; i++, pos++) value = (value << 1) | ((body[pos >>> 3] >>> (7 - pos % 8)) & 1);
     return value;
   };
-  const sparse = !!(body[1] & 1), godIndex = body[1] & 2 ? get(4) : -1;
+  const sparse = !!(body[1] & 1), godMask = body[1] & 4 ? Array.from({length:9},()=>get(1)) : null, godIndex = body[1] & 2 ? get(4) : -1;
   if (godIndex > 8) fail('神将位置无效');
   const team = Array.from({ length: 9 }, (_, position) => {
     const n = CAT.heroes[get(9)], lv = get(7) + 1, star = get(3) + 1;
@@ -145,7 +145,7 @@ function decode(code) {
       if (index > ids.length) fail('对战码装备编号无效');
       return index === 0 ? null : ids[index - 1];
     });
-    return { n, lv, star, eq, ...(position === godIndex ? { form: 'god' } : {}) };
+    return { n, lv, star, eq, ...((godMask ? godMask[position] : position === godIndex) ? { form: 'god' } : {}) };
   });
   if (Math.ceil(pos / 8) !== body.length || (pos % 8 && (body[body.length - 1] & ((1 << (8 - pos % 8)) - 1)))) fail('对战码含多余资料');
   return validate({ kind: 'pvp', v: RULE, owner, name, team });

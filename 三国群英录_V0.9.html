@@ -642,7 +642,6 @@ SG.GLOBAL_HOOKS_EXTRA = GLOBAL_HOOKS_EXTRA;
 
 class Battle {
   constructor(A, B, log = false) {
-    if ([A,B].some(t=>t.filter(u=>u.form==='god').length>1)) throw new Error('每队最多上阵一位神将');
     this.teams = [A, B]; this._all = A.concat(B); this.round = 0; this.stats = { kills: [], counter: [0, 0] }; this.log = log; this.lines = []; this.events = []; this.flags_round = {};
     this.teams.forEach((t, s) => t.forEach((u, i) => { u.team = t; u.side = s; u.idx = i; u.battle = this; }));
     this.hooks = [];
@@ -1920,7 +1919,6 @@ class Game {
     const picks = []; cells.forEach((n, i) => { if (n && this.hero(n)) picks.push([n, i]); });
     if (!picks.length) return { err: '阵上没人' };
     if (new Set(picks.map(p=>p[0])).size !== picks.length) return {err:'同一人物不能重复上阵'};
-    if (SG.God && !SG.God.check(this,picks.map(p=>p[0]))) return {err:'每队最多上阵一位神将'};
     if (picks.length > lim.max) return { err: `这关只能带 ${lim.max} 人` };
     if (picks.some(([n]) => this.hero(n).hp < 1)) return { err: '有人没兵了，先征兵' };
     const replay = this.isCleared(id);
@@ -2330,27 +2328,23 @@ function skill(n){
  return sk;
 }
 function apply(u){const m=DATA[u.name];if(!m)throw Error('此人物尚无神形态');u.form='god';u.label='神·'+u.name;u.base[m.primary]*=1.08;u.base[m.secondary]*=1.04;u.skill=skill(u.name);return u;}
-function check(g,names){return names.filter(n=>n&&g.hero(n)?.form==='god').length<=1;}
 function godState(g){const s=g.s.gods||(g.s.gods={heroes:{},trials:{}});s.heroes=s.heroes||{};s.trials=s.trials||{};return s;}
 function progress(g,n){if(!DATA[n])throw Error('此人物尚无神形态');const s=godState(g);return s.heroes[n]||(s.heroes[n]={qualified:false,awakened:false});}
 function dayKey(date=new Date()){return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');}
 function weekKey(date=new Date()){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()-(d.getDay()+6)%7);return dayKey(d);}
-SG.God={DATA,apply,skill,cleanse,check,progress,dayKey,weekKey,context,
+SG.God={DATA,apply,skill,cleanse,progress,dayKey,weekKey,context,
  portrait:(n,g,form)=>((form??g?.hero(n)?.form)==='god'?'神·':'')+n,
  tickBurn(b,t){const u=t.flags.godBurn;context(b,{aoe:true,chain:true,active:false},()=>b.damage(u,t,.25,'mag',0,true,'神灼烧'));}
 };
 const P=SG.Game.prototype;
 P.godProgress=function(n){return progress(this,n);};
 P.awaken=function(n){const h=this.hero(n),p=progress(this,n);if(this.kind==='conquest'||this.s.cycle<2)return {err:'二周目闯关开放觉醒'};if(p.awakened)return {err:'已觉醒'};if(!h||h.lv<70||h.star<5||!p.qualified)return {err:'需要70级、5星并通关所属封神试炼'};if(this.s.gold<1000000)return {err:'需要100万金币'};this.s.gold-=1000000;p.awakened=true;return {ok:true};};
-P.setGodForm=function(n,form){const h=this.hero(n);if(!h||!DATA[n]||!['normal','god'].includes(form))return {err:'形态无效'};if(form==='god'&&!progress(this,n).awakened)return {err:'尚未觉醒'};if(form==='god'){
- const formations=[this.s.formation,this.s.pvp?.cells].filter(Boolean);if(formations.some(F=>F.includes(n)&&F.some(x=>x!==n&&this.hero(x)?.form==='god')))return {err:'每队最多上阵一位神将，请先调整阵容'};
- }h.form=form;return {ok:true};};
+P.setGodForm=function(n,form){const h=this.hero(n);if(!h||!DATA[n]||!['normal','god'].includes(form))return {err:'形态无效'};if(form==='god'&&!progress(this,n).awakened)return {err:'尚未觉醒'};h.form=form;return {ok:true};};
 P.godTrial=function(n,cells,opt={}){
  if(this.kind==='conquest'||this.s.cycle<2)return {err:'二周目闯关开放封神试炼'};
  const h=this.hero(n);if(!DATA[n]||!h||h.lv<70||h.star<5)return {err:'试炼对象须达到70级、5星'};
  if(!Array.isArray(cells)||cells.length!==9)return {err:'阵容须为九宫站位'};
  const names=cells.filter(Boolean);if(!names.includes(n)||new Set(names).size!==names.length||names.some(x=>!this.hero(x)))return {err:'试炼须带上该将，且不可重复上阵'};
- if(!check(this,names))return {err:'每队最多上阵一位神将'};
  if(names.some(x=>this.hero(x).hp<1))return {err:'有人没兵了，先征兵'};
  const faction=DATA[n].faction,foes=Object.keys(DATA).filter(x=>DATA[x].faction===faction);
  const A=names.map(x=>this.unitOf(x,true)),B=foes.map(x=>SG.mkHeroUnit(x,75,5,[],null,x===n?'god':'normal'));
@@ -2793,7 +2787,7 @@ class World {
   // 守城：names 是上阵的人（null = 自动：守将 + 最强 8 人），返回 { A, B, gb } 给调用方开打
   defenseUnits(plan, names) {
     const st = this.st, c = st.city[plan.best], g = c.guard;
-    if (!names) {let chosen=false;names=this.defenders(plan.best).filter(n=>{if(this.p.heroes[n]?.form!=='god')return true;if(chosen)return false;chosen=true;return true;});}
+    if (!names) names=this.defenders(plan.best);
     const A = this.my_units(names);
     let gb = g && names.includes(g) ? 1 + CQ.guard_bonus * Math.floor(this.p.cqStat4(g)['统率'] / 10) : 1;
     if (!names.includes(g) && g) gb = 1 + CQ.guard_bonus * Math.floor(this.p.cqStat4(g)['统率'] / 10);   // 守将在城里就有加成
@@ -2873,7 +2867,7 @@ class ConquestGame extends SG.Game {
   cqStat4(n) { const h = SG.D.H[n], s = this.s.heroes[n], k = 1 + SG.STARK[s.star], o = {}; for (const [c, g] of [['武力', '武成长'], ['统率', '统成长'], ['智力', '智成长'], ['速度', '速成长']]) o[c] = (parseFloat(h[c]) + parseFloat(h[g]) * (s.lv - 1)) * k; return o; }
   cqHp(n) { const s = this.s.heroes[n]; return s.hp / (s.lv * 1000); }
   cqSetHp(n, r) { const s = this.s.heroes[n]; if (s) s.hp = r * s.lv * 1000; }
-  cqUnits(names) { if(SG.God&&!SG.God.check(this,names))throw Error('每队最多上阵一位神将');return names.map(n => this.unitOf(n)); }
+  cqUnits(names) { return names.map(n => this.unitOf(n)); }
   // 规则差异：招贤池锁本阵营 + 无阵营；征兵每千兵 2×等级；铁匠铺不按章封顶
   drawPoolFor(t) { const me = this.world.st.me; return SG.D.POOL[t].filter(n => [me, '无'].includes(SG.D.H[n]['阵营'])); }
   draw(k) {
@@ -3016,7 +3010,6 @@ function validate(raw) {
     if (h.form === 'god' && !SG.God?.DATA[h.n]) fail('神形态资料无效');
     return { n: h.n, lv: h.lv, star: h.star, eq, ...(h.form === 'god' ? { form: 'god' } : {}) };
   });
-  if (team.filter(h => h.form === 'god').length > 1) fail('每队最多上阵一位神将');
   return { kind: 'pvp', v: RULE, owner: raw.owner, name: raw.name.trim(), team };
 }
 function snapshot(g) {
@@ -3031,22 +3024,23 @@ function snapshot(g) {
     }) };
   }) });
 }
-// 码的字节布局：[字典版][布局位：bit0 稀疏装备、bit1 含神将][姓名字节数] UUID 16 字节 姓名 位字段阵容 校验 4 字节。
-// 位字段：有神将先 4 位神将位置；每人 将领 9 位、等级 7 位、星级 3 位、四槽装备（稀疏：1 位有无 + 编号；全量：编号+1）。
+// 码的字节布局：[字典版][布局位：bit0 稀疏装备、bit1 单神将、bit2 多神将][姓名字节数] UUID 16 字节 姓名 位字段阵容 校验 4 字节。
+// 位字段：单神将先 4 位神将位置，多神将先 9 位形态标记；每人 将领 9 位、等级 7 位、星级 3 位、四槽装备（稀疏：1 位有无 + 编号；全量：编号+1）。
 const CAT = SG.PVP_CATALOG;
 const widths = CAT.gear.map(ids => Math.ceil(Math.log2(ids.length + 1)));
 const GEAR_BITS = 9 * widths.reduce((a, b) => a + b, 0);
-const MAX_BYTES = 3 + 16 + 64 + Math.ceil((4 + 9 * 19 + GEAR_BITS) / 8) + 4;
+const MAX_BYTES = 3 + 16 + 64 + Math.ceil((9 + 9 * 19 + GEAR_BITS) / 8) + 4;
 const to64 = bytes => btoa(String.fromCharCode(...bytes));
 function encode(raw) {
   const s = validate(raw);
   if (s.team.some(h => !CAT.heroes.includes(h.n) || h.eq.some((id, i) => id !== null && !CAT.gear[i].includes(id)))) fail('阵容里有对战码暂不支持的将领或装备');
   const name = new TextEncoder().encode(s.name);
   const sparseBits = 36 + s.team.reduce((a, h) => a + h.eq.reduce((n, id, i) => n + (id === null ? 0 : widths[i]), 0), 0);
-  const sparse = sparseBits < GEAR_BITS, godIndex = s.team.findIndex(h => h.form === 'god');
+  const sparse = sparseBits < GEAR_BITS, godIndex = s.team.findIndex(h => h.form === 'god'), multiGod = s.team.filter(h => h.form === 'god').length > 1;
   const bits = [];
   const put = (value, width) => { for (let i = width - 1; i >= 0; i--) bits.push((value >>> i) & 1); };
-  if (godIndex >= 0) put(godIndex, 4);
+  if (multiGod) s.team.forEach(h => put(h.form === 'god' ? 1 : 0, 1));
+  else if (godIndex >= 0) put(godIndex, 4);
   for (const h of s.team) {
     put(CAT.heroes.indexOf(h.n), 9); put(h.lv - 1, 7); put(h.star - 1, 3);
     h.eq.forEach((id, i) => {
@@ -3055,7 +3049,7 @@ function encode(raw) {
     });
   }
   const bytes = new Uint8Array(3 + 16 + name.length + Math.ceil(bits.length / 8));
-  bytes.set([CAT.v, (sparse ? 1 : 0) + (godIndex >= 0 ? 2 : 0), name.length]);
+  bytes.set([CAT.v, (sparse ? 1 : 0) + (multiGod ? 4 : godIndex >= 0 ? 2 : 0), name.length]);
   const hex = s.owner.replace(/-/g, '');
   for (let i = 0; i < 16; i++) bytes[3 + i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   bytes.set(name, 19);
@@ -3072,7 +3066,7 @@ function decode(code) {
   if (bytes.length < 24 || bytes.length > MAX_BYTES) fail('对战码长度无效');
   const body = bytes.slice(0, -4);
   if (!checksum(body).every((b, i) => b === bytes[bytes.length - 4 + i])) fail('对战码不完整或已损坏');
-  if (body[0] !== CAT.v || body[1] > 3 || body[2] < 1 || body[2] > 64) fail('对战码版本或姓名无效');
+  if (body[0] !== CAT.v || body[1] > 5 || body[2] < 1 || body[2] > 64) fail('对战码版本或姓名无效');
   const hex = Array.from(body.slice(3, 19), b => b.toString(16).padStart(2, '0')).join('');
   const owner = [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-');
   let name;
@@ -3083,7 +3077,7 @@ function decode(code) {
     let value = 0; for (let i = 0; i < width; i++, pos++) value = (value << 1) | ((body[pos >>> 3] >>> (7 - pos % 8)) & 1);
     return value;
   };
-  const sparse = !!(body[1] & 1), godIndex = body[1] & 2 ? get(4) : -1;
+  const sparse = !!(body[1] & 1), godMask = body[1] & 4 ? Array.from({length:9},()=>get(1)) : null, godIndex = body[1] & 2 ? get(4) : -1;
   if (godIndex > 8) fail('神将位置无效');
   const team = Array.from({ length: 9 }, (_, position) => {
     const n = CAT.heroes[get(9)], lv = get(7) + 1, star = get(3) + 1;
@@ -3092,7 +3086,7 @@ function decode(code) {
       if (index > ids.length) fail('对战码装备编号无效');
       return index === 0 ? null : ids[index - 1];
     });
-    return { n, lv, star, eq, ...(position === godIndex ? { form: 'god' } : {}) };
+    return { n, lv, star, eq, ...((godMask ? godMask[position] : position === godIndex) ? { form: 'god' } : {}) };
   });
   if (Math.ceil(pos / 8) !== body.length || (pos % 8 && (body[body.length - 1] & ((1 << (8 - pos % 8)) - 1)))) fail('对战码含多余资料');
   return validate({ kind: 'pvp', v: RULE, owner, name, team });
@@ -3680,8 +3674,7 @@ function pickSheet(i) {
 }
 function repick() { if (V.pickAt != null && $('modal').classList.contains('on')) { const m = $('modal'), y = m.querySelector('.sheet') ? m.querySelector('.sheet').scrollTop : 0; pickSheet(V.pickAt); const s = m.querySelector('.sheet'); if (s) s.scrollTop = y; } }
 function autoForm(max) {
-  let godTaken=false;
-  const L = formPool().filter(n => G.hero(n).hp >= 1).sort((a, b) => G.power(b) - G.power(a)).filter(n=>{if(G.hero(n).form!=='god')return true;if(godTaken)return false;godTaken=true;return true;}).slice(0, max);
+  const L = formPool().filter(n => G.hero(n).hp >= 1).sort((a, b) => G.power(b) - G.power(a)).slice(0, max);
   // 统率高的放前排
   const byDef = L.slice().sort((a, b) => G.panel(b).def - G.panel(a).def);
   const F = [null, null, null, null, null, null, null, null, null];
@@ -4229,7 +4222,6 @@ const ACT = {
     if (i == null) return;
     const lim = !V.cq && V.stage ? SG.stageLimit(D.STAGE[V.stage]).max : 9;
     if (!F[i] && F.filter(Boolean).length >= lim) { toast(`这关只能带 ${lim} 人`); return; }
-    const next=F.slice();next[i]=n;if(!SG.God.check(G,next.filter((x,j)=>x!==n||j===i)))return toast('每队最多上阵一位神将');
     const at = F.indexOf(n); if (at >= 0) F[at] = null;
     F[i] = n; save(); closeModal(); render();
   },
@@ -4250,7 +4242,6 @@ const ACT = {
     let i = V.sel != null ? V.sel : F.findIndex(x => !x);
     if (i < 0) { toast('九格满了'); return; }
     if (!F[i] && F.filter(Boolean).length >= lim) { toast(`这关只能带 ${lim} 人`); return; }
-    const next=F.slice();next[i]=n;if(!SG.God.check(G,next))return toast('每队最多上阵一位神将');
     F[i] = n; V.sel = null; save(); render();
   },
   'form-auto': () => { autoForm(!V.cq && V.stage ? SG.stageLimit(D.STAGE[V.stage]).max : 9); save(); render(); },
@@ -4377,7 +4368,7 @@ const SG=window.SG,U=SG.ui,{esc,por,num,toast}=U;
 const game=()=>SG.getGame();
 function skill(n){const m=SG.God.DATA[n];return `<div class="skill"><span class="sn">${esc(m.title)}</span><span class="st">神形态</span><p>${esc(m.skillText)}</p><p>${esc(m.passiveText)}</p></div>`;}
 function hero(n){const g=game(),m=SG.God.DATA[n];if(!m)return '';const p=g.godProgress(n),h=g.hero(n);
- return `<div class="card small god-panel"><b class="kai">神话设定 · ${esc(m.title)}</b><p>${esc(m.myth)}</p><div class="muted">架空觉醒设定。普通生平与人物本体保持一致。</div><p>${p.qualified?'试炼资格已取得':'尚未取得试炼资格'} · ${p.awakened?'已觉醒':'未觉醒'}</p>${p.awakened?`<div class="btns"><div class="btn main" data-a="god-form" data-n="${n}" data-form="${h.form==='god'?'normal':'god'}">切为${h.form==='god'?'普通':'神'}形态</div></div>`:`<div class="btns"><div class="btn" data-a="go" data-v="gods">前往封神试炼</div><div class="btn main" data-a="god-awaken" data-n="${n}">觉醒 · 100万金币</div></div>`}<div class="tiny muted">等级、星级、碎片、装备共用；每队最多上阵一位神将。专属装备保留属性加成，神技替换本体技能。</div></div>`;
+ return `<div class="card small god-panel"><b class="kai">神话设定 · ${esc(m.title)}</b><p>${esc(m.myth)}</p><div class="muted">架空觉醒设定。普通生平与人物本体保持一致。</div><p>${p.qualified?'试炼资格已取得':'尚未取得试炼资格'} · ${p.awakened?'已觉醒':'未觉醒'}</p>${p.awakened?`<div class="btns"><div class="btn main" data-a="god-form" data-n="${n}" data-form="${h.form==='god'?'normal':'god'}">切为${h.form==='god'?'普通':'神'}形态</div></div>`:`<div class="btns"><div class="btn" data-a="go" data-v="gods">前往封神试炼</div><div class="btn main" data-a="god-awaken" data-n="${n}">觉醒 · 100万金币</div></div>`}<div class="tiny muted">等级、星级、碎片、装备共用；神将上阵数量不限。专属装备保留属性加成，神技替换本体技能。</div></div>`;
 }
 SG.GodUI={skill,hero};
 SG.VIEWS.gods=()=>{const g=game();return `<div class="sec"><h2>封神试炼</h2><span class="line"></span></div><div class="card small">二周目闯关开放。原将70级、5星并参加所属阵营试炼，通关获得觉醒资格。取得资格后，消耗100万金币即可觉醒。试炼不消耗兵力，失败不扣资源。觉醒资格和形态随存档跨周目保留。</div><div class="btns"><div class="btn" data-a="go" data-v="main">回主界面</div><div class="btn" data-a="go" data-v="form">调整试炼阵容</div></div>${['魏','蜀','吴','汉'].map(f=>`<div class="sec"><h2>${f} · 五神</h2><span class="line"></span></div><div class="hgrid god-grid">${Object.entries(SG.God.DATA).filter(([n,m])=>m.faction===f).map(([n,m])=>{const h=g.hero(n),p=g.godProgress(n);return `<div class="card god-card">${por('神·'+n,'m','', 'normal')}<b class="kai">神·${n}</b><div class="small">${esc(m.title)}</div><p class="tiny">${esc(m.skillText)}</p><p class="tiny muted">${esc(m.passiveText)}</p><div class="god-card-footer"><div class="tiny god-card-status">${h?`${h.lv}级 · ${h.star}星`:'尚未招募本体'}<br>${p.awakened?'已觉醒':p.qualified?'资格已取得':'等待试炼'}</div><div class="btns god-actions"><div class="btn sm" data-a="god-trial" data-n="${n}">挑战试炼</div>${h?`<div class="btn sm" data-a="hero" data-n="${n}">培养 / 觉醒</div>`:'<div class="god-action-spacer" aria-hidden="true"></div>'}</div></div></div>`;}).join('')}</div>`).join('')}`;};
@@ -4460,13 +4451,13 @@ Object.assign(SG.ACT, {
   'pvp-name': () => nameSave(),
   'pvp-cell': el => cellSheet(+el.dataset.i),
   'pvp-change': el => selectHero(+el.dataset.i),
-  'pvp-pick': el => { const s = p(), i = +el.dataset.i, n = el.dataset.n, j = s.cells.indexOf(n); const next=s.cells.slice();if(j>=0)next[j]=s.cells[i];next[i]=n;if(!SG.God.check(g(),next))return toast('每队最多上阵一位神将');s.cells=next; closeModal(); commit(); },
+  'pvp-pick': el => { const s = p(), i = +el.dataset.i, n = el.dataset.n, j = s.cells.indexOf(n); const next=s.cells.slice();if(j>=0)next[j]=s.cells[i];next[i]=n;s.cells=next; closeModal(); commit(); },
   'pvp-remove': el => { p().cells[+el.dataset.i] = null; closeModal(); commit(); },
   'pvp-gear': el => gearSheet(el.dataset.n, el.dataset.sl),
   'pvp-wear': el => { try { SG.PVP.equip(g(), el.dataset.n, el.dataset.sl, el.dataset.uid === '' ? null : +el.dataset.uid); SG.save(); cellSheet(p().cells.indexOf(el.dataset.n)); SG.render(); } catch (e) { toast(e.message); } },
   'pvp-copy-team': () => U.ask('复制闯关阵容', '替换当前 PVP 站位和配装？', '复制', () => { const s = p(); s.cells = g().s.formation.slice(); s.gear = JSON.parse(JSON.stringify(g().s.gear)); commit(); toast('已复制'); }),
   'pvp-auto-equip': () => { SG.PVP.autoEquip(g()); commit(); toast('专属优先，已按人物能力配装'); },
-  'pvp-auto': () => { const s = p(), names = Object.keys(g().s.heroes).filter(n => !s.cells.includes(n)).sort((a, b) => g().power(b) - g().power(a)); for (let i = 0; i < 9; i++) if (!s.cells[i]) {const j=names.findIndex(n=>SG.God.check(g(),s.cells.filter(Boolean).concat(n)));s.cells[i]=j>=0?names.splice(j,1)[0]:null;} commit(); if (s.cells.includes(null)) toast('将领不足九人，先去招贤'); },
+  'pvp-auto': () => { const s = p(), names = Object.keys(g().s.heroes).filter(n => !s.cells.includes(n)).sort((a, b) => g().power(b) - g().power(a)); for (let i = 0; i < 9; i++) if (!s.cells[i]) {s.cells[i]=names.shift()||null;} commit(); if (s.cells.includes(null)) toast('将领不足九人，先去招贤'); },
   'pvp-code': () => {
     if (!nameSave(false)) return;
     try { const code = SG.PVP.encode(SG.PVP.snapshot(g())); SG.save(); openModal(`<div class="shead">PVP 对战码<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(p().name)} · 生成时的阵容快照，发给朋友即可挑战。</div><textarea id="pvp-export" class="pvp-code" readonly>${esc(code)}</textarea><div class="tiny muted">${code.length} 字 · 培养或阵容变化后请重新生成</div><div class="btns"><div class="btn main" data-a="pvp-copy">复制对战码</div></div>`); } catch (e) { toast(e.message); }
@@ -4704,7 +4695,6 @@ ACT['cq-go'] = () => {
   const g = G(), w = W(), n = V.cq.city;
   const P = picks(); if (!P.length) { toast('阵上没人'); return; }
   if (P.some(([x]) => g.hero(x).hp < 1)) { toast('有人没兵了，先征兵'); return; }
-  if(!SG.God.check(g,P.map(p=>p[0])))return toast('每队最多上阵一位神将');
   const A = w.my_units(P.map(p => p[0])), B = w.foe_units(n);
   SG.setBattleSeed(Math.floor(Math.random() * 2 ** 31));
   const b = new SG.Battle(A, B, true); A.forEach((u, i) => u.idx = P[i][1]);
@@ -4769,7 +4759,6 @@ ACT['cq-def-pick'] = () => {
 };
 function defend(names, cells) {
   const g = G(), w = W(), plan = g.s.pending;
-  if(names&&!SG.God.check(g,names))return toast('每队最多上阵一位神将');
   const { A, B } = w.defenseUnits(plan, names);
   SG.setBattleSeed(Math.floor(Math.random() * 2 ** 31));
   const b = new SG.Battle(A, B, true);

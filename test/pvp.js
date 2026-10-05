@@ -24,11 +24,12 @@ const reject = (fn, re) => assert.throws(fn, re);
   assert.deepEqual(SG.PVP.decode(fullCode), full);
   assert.ok(fullCode.length <= 200);
   console.log(`全装九人 + 16 个 emoji 姓名：${fullCode.length} 字；普通：${code.length} 字`);
-  // 神将：形态位置进码，每队至多一位。
+  // 神将：单神将沿用旧码，多神将形态及装备完整往返。
   const god = structuredClone(foe); god.team[0].form = 'god';
   assert.ok(SG.God.DATA[god.team[0].n]);
   const godCode = SG.PVP.encode(god); assert.deepEqual(SG.PVP.decode(godCode), god); assert.ok(godCode.length <= 100);
-  const twoGods = structuredClone(god); twoGods.team[1].form = 'god'; assert.ok(SG.God.DATA[twoGods.team[1].n]); reject(() => SG.PVP.validate(twoGods), /一位神将/);
+  const twoGods = structuredClone(god); twoGods.team[1].form = 'god'; assert.ok(SG.God.DATA[twoGods.team[1].n]); assert.deepEqual(SG.PVP.decode(SG.PVP.encode(twoGods)), twoGods);
+  const nineGods = structuredClone(full); nineGods.team.forEach((h,i) => { h.n = Object.keys(SG.God.DATA)[i]; h.form = 'god'; }); assert.deepEqual(SG.PVP.decode(SG.PVP.encode(nineGods)), nineGods);
   // 损坏、截断、非本游戏的码一律拒收。
   const corrupt = Buffer.from(code.slice(5), 'base64'); corrupt[20] ^= 1;
   reject(() => SG.PVP.decode('SGP3:' + corrupt.toString('base64')), /损坏/);

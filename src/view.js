@@ -531,8 +531,7 @@ function pickSheet(i) {
 }
 function repick() { if (V.pickAt != null && $('modal').classList.contains('on')) { const m = $('modal'), y = m.querySelector('.sheet') ? m.querySelector('.sheet').scrollTop : 0; pickSheet(V.pickAt); const s = m.querySelector('.sheet'); if (s) s.scrollTop = y; } }
 function autoForm(max) {
-  let godTaken=false;
-  const L = formPool().filter(n => G.hero(n).hp >= 1).sort((a, b) => G.power(b) - G.power(a)).filter(n=>{if(G.hero(n).form!=='god')return true;if(godTaken)return false;godTaken=true;return true;}).slice(0, max);
+  const L = formPool().filter(n => G.hero(n).hp >= 1).sort((a, b) => G.power(b) - G.power(a)).slice(0, max);
   // 统率高的放前排
   const byDef = L.slice().sort((a, b) => G.panel(b).def - G.panel(a).def);
   const F = [null, null, null, null, null, null, null, null, null];
@@ -1080,7 +1079,6 @@ const ACT = {
     if (i == null) return;
     const lim = !V.cq && V.stage ? SG.stageLimit(D.STAGE[V.stage]).max : 9;
     if (!F[i] && F.filter(Boolean).length >= lim) { toast(`这关只能带 ${lim} 人`); return; }
-    const next=F.slice();next[i]=n;if(!SG.God.check(G,next.filter((x,j)=>x!==n||j===i)))return toast('每队最多上阵一位神将');
     const at = F.indexOf(n); if (at >= 0) F[at] = null;
     F[i] = n; save(); closeModal(); render();
   },
@@ -1101,7 +1099,6 @@ const ACT = {
     let i = V.sel != null ? V.sel : F.findIndex(x => !x);
     if (i < 0) { toast('九格满了'); return; }
     if (!F[i] && F.filter(Boolean).length >= lim) { toast(`这关只能带 ${lim} 人`); return; }
-    const next=F.slice();next[i]=n;if(!SG.God.check(G,next))return toast('每队最多上阵一位神将');
     F[i] = n; V.sel = null; save(); render();
   },
   'form-auto': () => { autoForm(!V.cq && V.stage ? SG.stageLimit(D.STAGE[V.stage]).max : 9); save(); render(); },

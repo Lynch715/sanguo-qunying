@@ -69,13 +69,13 @@ Object.assign(SG.ACT, {
   'pvp-name': () => nameSave(),
   'pvp-cell': el => cellSheet(+el.dataset.i),
   'pvp-change': el => selectHero(+el.dataset.i),
-  'pvp-pick': el => { const s = p(), i = +el.dataset.i, n = el.dataset.n, j = s.cells.indexOf(n); const next=s.cells.slice();if(j>=0)next[j]=s.cells[i];next[i]=n;if(!SG.God.check(g(),next))return toast('每队最多上阵一位神将');s.cells=next; closeModal(); commit(); },
+  'pvp-pick': el => { const s = p(), i = +el.dataset.i, n = el.dataset.n, j = s.cells.indexOf(n); const next=s.cells.slice();if(j>=0)next[j]=s.cells[i];next[i]=n;s.cells=next; closeModal(); commit(); },
   'pvp-remove': el => { p().cells[+el.dataset.i] = null; closeModal(); commit(); },
   'pvp-gear': el => gearSheet(el.dataset.n, el.dataset.sl),
   'pvp-wear': el => { try { SG.PVP.equip(g(), el.dataset.n, el.dataset.sl, el.dataset.uid === '' ? null : +el.dataset.uid); SG.save(); cellSheet(p().cells.indexOf(el.dataset.n)); SG.render(); } catch (e) { toast(e.message); } },
   'pvp-copy-team': () => U.ask('复制闯关阵容', '替换当前 PVP 站位和配装？', '复制', () => { const s = p(); s.cells = g().s.formation.slice(); s.gear = JSON.parse(JSON.stringify(g().s.gear)); commit(); toast('已复制'); }),
   'pvp-auto-equip': () => { SG.PVP.autoEquip(g()); commit(); toast('专属优先，已按人物能力配装'); },
-  'pvp-auto': () => { const s = p(), names = Object.keys(g().s.heroes).filter(n => !s.cells.includes(n)).sort((a, b) => g().power(b) - g().power(a)); for (let i = 0; i < 9; i++) if (!s.cells[i]) {const j=names.findIndex(n=>SG.God.check(g(),s.cells.filter(Boolean).concat(n)));s.cells[i]=j>=0?names.splice(j,1)[0]:null;} commit(); if (s.cells.includes(null)) toast('将领不足九人，先去招贤'); },
+  'pvp-auto': () => { const s = p(), names = Object.keys(g().s.heroes).filter(n => !s.cells.includes(n)).sort((a, b) => g().power(b) - g().power(a)); for (let i = 0; i < 9; i++) if (!s.cells[i]) {s.cells[i]=names.shift()||null;} commit(); if (s.cells.includes(null)) toast('将领不足九人，先去招贤'); },
   'pvp-code': () => {
     if (!nameSave(false)) return;
     try { const code = SG.PVP.encode(SG.PVP.snapshot(g())); SG.save(); openModal(`<div class="shead">PVP 对战码<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(p().name)} · 生成时的阵容快照，发给朋友即可挑战。</div><textarea id="pvp-export" class="pvp-code" readonly>${esc(code)}</textarea><div class="tiny muted">${code.length} 字 · 培养或阵容变化后请重新生成</div><div class="btns"><div class="btn main" data-a="pvp-copy">复制对战码</div></div>`); } catch (e) { toast(e.message); }
