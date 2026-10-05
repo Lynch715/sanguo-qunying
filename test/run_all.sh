@@ -11,7 +11,6 @@ run "闯关规则"     node test/game_unit.js
 run "功名"         node test/ach_unit.js
 run "神将"         node test/gods.js
 run "PVP"          node test/pvp.js
-run "神将短码"     node test/pvp_gods_short.js
 run "成长与周目"   node test/progression.js
 run "存档码"       node test/saveio.js
 if [ -n "$FULL" ]; then

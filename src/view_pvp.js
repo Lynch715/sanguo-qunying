@@ -7,7 +7,7 @@ const title = (text, sub = '') => `<div class="sec"><h2>${text}</h2><span class=
 const back = `<div class="btns"><div class="btn" data-a="go" data-v="pvp">回 PVP</div></div>`;
 const earIcon = '<img class="pvp-ear-icon" src="assets/items/pvp_ear.png?v=b3bfa096" alt="耳朵战利品" width="64" height="64">';
 const date = t => new Date(t).toLocaleString('zh-CN', { hour12: false });
-let opponent = null, busy = false;
+let opponent = null;
 function commit() { SG.save(); SG.render(); }
 function teamCards(s) {
   return `<div class="grid9 pvp-grid">${s.team.map((h, i) => `${i % 3 === 0 ? `<div class="rowlab" style="grid-column:1/4">${['前排', '中排', '后排'][i / 3]}</div>` : ''}<div class="hc tb-${SG.D.H[h.n]['品阶']}"><span class="tag">${TSEAL(SG.D.H[h.n]['品阶'])}</span>${por(h.n,'m','',h.form||'normal')}<div class="nm">${esc(h.form==='god'?'神·'+h.n:h.n)}</div><div class="meta">Lv.${h.lv} <span class="stars">${stars(h.star)}</span></div><div class="tiny muted">${h.eq.filter(Boolean).length} 件装备</div></div>`).join('')}</div>`;
@@ -40,8 +40,8 @@ SG.VIEWS['pvp-challenge'] = () => `${title('开始对战')}<div class="small mut
 SG.VIEWS['pvp-preview'] = () => opponent ? `${title('对手阵容', esc(opponent.name))}${teamCards(opponent)}<div class="card small muted">以你当前保存的 PVP 阵容迎战。满兵上场，最多三十回合。</div><div class="btns"><div class="btn main" data-a="pvp-fight">开战</div><div class="btn" data-a="pvp-foe-detail">查看装备</div></div>${back}` : SG.VIEWS['pvp-challenge']();
 SG.VIEWS['pvp-records'] = () => {
   const s = p(), groups = SG.PVP.recordGroups(s);
-  return `<details class="pvp-trophies" id="pvp-trophies"${SG.V.pvpTrophiesOpen === false ? '' : ' open'}><summary class="sec"><h2>战利品</h2><span class="line"></span><span class="tp">${s.ears.length} 件 · <span class="pvp-fold-open">收起</span><span class="pvp-fold-closed">展开</span></span></summary>${s.ears.length ? `<div class="pvp-trophy-grid">${s.ears.map((e, i) => `<div class="card pvp-ear-cell" data-a="pvp-ear" data-i="${i}" role="button" tabindex="0" aria-label="查看耳朵战利品" title="${esc(e.opponent.name)}">${earIcon}<div class="pvp-ear-name">${esc(e.opponent.name)}</div></div>`).join('')}</div>` : '<div class="empty">尚未收获耳朵</div>'}
-    </details>${title('对战记录', '最近 100 场')}${groups.map(({record:r,index:i,entries}) => `<div class="card small" data-a="pvp-record" data-i="${i}"><div class="row"><b class="kai">${esc(r.opponent.name)}</b><span class="grow"></span><span style="color:var(--${r.result === '胜' ? 'zhu' : 'ink-2'})">${r.result}</span>　${r.rounds} 回合</div><div class="tiny muted">${esc(date(r.time))}${entries.length > 1 ? ' · 挑战 ' + entries.length + ' 次' : ''} · 点此查看详情</div></div>`).join('') || '<div class="empty">尚无对战记录</div>'}${back}`;
+  return `<details class="pvp-trophies" id="pvp-trophies"${SG.V.pvpTrophiesOpen === false ? '' : ' open'}><summary class="sec"><h2>战利品</h2><span class="line"></span><span class="tp">${s.ears.length} 件 · <span class="pvp-fold-open">收起</span><span class="pvp-fold-closed">展开</span></span></summary>${s.ears.length ? `<div class="pvp-trophy-grid">${s.ears.map((e, i) => `<div class="card pvp-ear-cell" data-a="pvp-ear" data-i="${i}" role="button" tabindex="0" aria-label="查看耳朵战利品" title="${esc(e.foe)}">${earIcon}<div class="pvp-ear-name">${esc(e.foe)}</div></div>`).join('')}</div>` : '<div class="empty">尚未收获耳朵</div>'}
+    </details>${title('对战记录', '最近 100 场')}${groups.map(({record:r,index:i,entries}) => `<div class="card small" data-a="pvp-record" data-i="${i}"><div class="row"><b class="kai">${esc(r.foe)}</b><span class="grow"></span><span style="color:var(--${r.result === '胜' ? 'zhu' : 'ink-2'})">${r.result}</span>　${r.rounds} 回合</div><div class="tiny muted">${esc(date(r.time))}${entries.length > 1 ? ' · 挑战 ' + entries.length + ' 次' : ''} · 点此查看详情</div></div>`).join('') || '<div class="empty">尚无对战记录</div>'}${back}`;
 };
 function selectHero(i) {
   openModal(`<div class="shead">选择将领<span class="x" data-a="close">关闭</span></div><div class="small muted">点击阵上将领可与这个位置交换。</div><div class="hgrid">${Object.keys(g().s.heroes).sort((a, b) => g().power(b) - g().power(a)).map(n => `<div class="hc tb-${SG.D.H[n]['品阶']}" data-a="pvp-pick" data-i="${i}" data-n="${esc(n)}">${por(n)}<div class="nm">${esc(g().hero(n)?.form==='god'?'神·'+n:n)}</div><div class="meta">Lv.${g().hero(n).lv} ${p().cells.includes(n) ? '阵上' : ''}</div></div>`).join('')}</div>`);
@@ -76,26 +76,25 @@ Object.assign(SG.ACT, {
   'pvp-copy-team': () => U.ask('复制闯关阵容', '替换当前 PVP 站位和配装？', '复制', () => { const s = p(); s.cells = g().s.formation.slice(); s.gear = JSON.parse(JSON.stringify(g().s.gear)); commit(); toast('已复制'); }),
   'pvp-auto-equip': () => { SG.PVP.autoEquip(g()); commit(); toast('专属优先，已按人物能力配装'); },
   'pvp-auto': () => { const s = p(), names = Object.keys(g().s.heroes).filter(n => !s.cells.includes(n)).sort((a, b) => g().power(b) - g().power(a)); for (let i = 0; i < 9; i++) if (!s.cells[i]) {const j=names.findIndex(n=>SG.God.check(g(),s.cells.filter(Boolean).concat(n)));s.cells[i]=j>=0?names.splice(j,1)[0]:null;} commit(); if (s.cells.includes(null)) toast('将领不足九人，先去招贤'); },
-  'pvp-code': async () => {
+  'pvp-code': () => {
     if (!nameSave(false)) return;
-    try { const code = await SG.PVP.encode(SG.PVP.snapshot(g())); SG.save(); openModal(`<div class="shead">PVP 对战码<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(p().name)} · 生成时的阵容快照，发给朋友即可挑战。</div><textarea id="pvp-export" class="pvp-code" readonly>${esc(code)}</textarea><div class="tiny muted">${code.length} 字 · 培养或阵容变化后请重新生成</div><div class="btns"><div class="btn main" data-a="pvp-copy">复制对战码</div></div>`); } catch (e) { toast(e.message); }
+    try { const code = SG.PVP.encode(SG.PVP.snapshot(g())); SG.save(); openModal(`<div class="shead">PVP 对战码<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(p().name)} · 生成时的阵容快照，发给朋友即可挑战。</div><textarea id="pvp-export" class="pvp-code" readonly>${esc(code)}</textarea><div class="tiny muted">${code.length} 字 · 培养或阵容变化后请重新生成</div><div class="btns"><div class="btn main" data-a="pvp-copy">复制对战码</div></div>`); } catch (e) { toast(e.message); }
   },
   'pvp-copy': async () => { const el = $('pvp-export'); el.select(); try { await navigator.clipboard.writeText(el.value); toast('对战码已复制'); } catch (e) { if (document.execCommand('copy')) toast('对战码已复制'); else toast('请长按文本框手动复制'); } },
   'pvp-challenge': () => { opponent = null; SG.go('pvp-challenge'); },
-  'pvp-preview': async () => { try { opponent = await SG.PVP.decode($('pvp-import').value); if (opponent.owner === p().owner) throw new Error('不能挑战自己的对战码'); SG.go('pvp-preview'); } catch (e) { toast(e.message); } },
+  'pvp-preview': () => { try { opponent = SG.PVP.decode($('pvp-import').value); if (opponent.owner === p().owner) throw new Error('不能挑战自己的对战码'); SG.go('pvp-preview'); } catch (e) { toast(e.message); } },
   'pvp-foe-detail': () => openModal(`<div class="shead">${esc(opponent.name)}<span class="x" data-a="close">关闭</span></div>${details(opponent)}`),
-  'pvp-fight': async () => {
-    if (busy || !opponent) return; busy = true;
-    const game = g();
-    try { const out = await SG.PVP.fight(game, opponent); if (g() !== game) return; out.note = esc(out.note); SG.save(); SG.Play.begin(out); } catch (e) { toast(e.message); } finally { busy = false; }
+  'pvp-fight': () => {
+    if (!opponent) return;
+    try { const out = SG.PVP.fight(g(), opponent); out.note = esc(out.note); SG.save(); SG.Play.begin(out); } catch (e) { toast(e.message); }
   },
   'pvp-record': el => {
     const group = SG.PVP.recordGroups(p()).find(x => x.index === +el.dataset.i); if (!group) return;
     if (group.entries.length === 1) { SG.ACT['pvp-record-detail'](el); return; }
-    openModal(`<div class="shead">${esc(group.record.opponent.name)}<span class="x" data-a="close">关闭</span></div><div class="small muted">挑战 ${group.entries.length} 次</div>${group.entries.map(({record:r,index:i}) => `<div class="card small" data-a="pvp-record-detail" data-i="${i}"><div class="row"><b class="kai">${r.result}</b><span class="grow"></span>${r.rounds} 回合</div><div class="tiny muted">${esc(date(r.time))}${r.reward ? ' · ' + esc(r.reward) : ''} · 查看本场阵容</div></div>`).join('')}`);
+    openModal(`<div class="shead">${esc(group.record.foe)}<span class="x" data-a="close">关闭</span></div><div class="small muted">挑战 ${group.entries.length} 次</div>${group.entries.map(({record:r,index:i}) => `<div class="card small" data-a="pvp-record-detail" data-i="${i}"><div class="row"><b class="kai">${r.result}</b><span class="grow"></span>${r.rounds} 回合</div><div class="tiny muted">${esc(date(r.time))}${r.reward ? ' · ' + esc(r.reward) : ''} · 查看本场阵容</div></div>`).join('')}`);
   },
-  'pvp-record-detail': el => { const r = p().records[+el.dataset.i]; openModal(`<div class="shead">${esc(r.opponent.name)} · ${r.result}<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(date(r.time))} · ${r.rounds} 回合${r.reward ? ' · ' + esc(r.reward) : ''}</div>${title('我方', esc(r.mine.name))}${details(r.mine)}${title('对方', esc(r.opponent.name))}${details(r.opponent)}`); },
-  'pvp-ear': el => { const e = p().ears[+el.dataset.i]; openModal(`<div class="shead">${esc(e.name)}<span class="x" data-a="close">关闭</span></div><div class="pvp-trophy">${earIcon}<div class="small muted">对战时间：${esc(date(e.time))}</div></div>${details(e.opponent)}`); },
+  'pvp-record-detail': el => { const r = p().records[+el.dataset.i], mine = SG.PVP.decode(r.mine), foe = SG.PVP.decode(r.opponent); openModal(`<div class="shead">${esc(foe.name)} · ${r.result}<span class="x" data-a="close">关闭</span></div><div class="small muted">${esc(date(r.time))} · ${r.rounds} 回合${r.reward ? ' · ' + esc(r.reward) : ''}</div>${title('我方', esc(mine.name))}${details(mine)}${title('对方', esc(foe.name))}${details(foe)}`); },
+  'pvp-ear': el => { const e = p().ears[+el.dataset.i]; openModal(`<div class="shead">${esc(e.name)}<span class="x" data-a="close">关闭</span></div><div class="pvp-trophy">${earIcon}<div class="small muted">对战时间：${esc(date(e.time))}</div></div>${details(SG.PVP.decode(e.opponent))}`); },
 });
 document.addEventListener('toggle', e => { if (e.target.id === 'pvp-trophies') SG.V.pvpTrophiesOpen = e.target.open; }, true);
 document.addEventListener('keydown', e => {
