@@ -12,6 +12,7 @@ run "功名"         node test/ach_unit.js
 run "神将"         node test/gods.js
 run "PVP"          node test/pvp.js
 run "成长与周目"   node test/progression.js
+run "周目档位"     node test/cycles.js
 run "存档码"       node test/saveio.js
 if [ -n "$FULL" ]; then
   run "对照 Python" python3 test/parity_py.py 50

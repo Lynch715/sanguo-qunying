@@ -9,7 +9,7 @@ g.s.gold = 100000;
 const r = g.draw(10); ok(r.length === 10 && r.some(x => ['名', '虎', '无双'].includes(x.tier)), '十连保底名');
 let hu = 0; g.s.sinceHu = 49; const r2 = g.draw(1); ok(['虎', '无双'].includes(r2[0].tier), '五十抽保底虎');
 const n = Object.keys(g.s.heroes)[0];
-const g0 = g.s.gold; g.train(n, 10); ok(g.hero(n).lv === 11 && g0 - g.s.gold === [...Array(10)].reduce((a, _, i) => a + 300 + 2 * (i + 2) * (i + 2), 0), '练级价 300+2×目标等级²');
+const g0 = g.s.gold; g.train(n, 10); ok(g.hero(n).lv === 11 && g0 - g.s.gold === [...Array(10)].reduce((a, _, i) => a + 200 + (i + 2) * (i + 2), 0), '练级价 200+目标等级²（50 级内）');
 g.hero(n).hp = 5000; const rc = g.recruitCost(n); ok(rc === Math.ceil(6 * (30 + 2 * 11)), '征兵 (30+2×等级)每千兵 ' + rc);
 g.buyTokens(12); ok(g.s.tokensBought === 12 && g.tokenPrice() === 525, '兵符十枚涨 25');
 const need = g.starNeed(n); ok(need === Math.trunc(SG.util.pyRound(5 * SG.CFG.star_q[D.H[n]['品阶']])), '升星所需 ' + need);
@@ -92,8 +92,8 @@ for (const nm of ['神亭酣斗', '过五关斩六将', '据水断桥', '草船�
   ok(SG.expFor(10, 20, 6, true, false, false) === 600 && SG.expFor(10, 20, 6, true, true, true) === 600, 'V0.7 阵亡、复刷各减半');
   ok(SG.expFor(25, 20, 6, true, true, false) === 240, 'V0.7 高 5 级以上只拿两成');
   ok(SG.expFor(5, 50, 6, true, true, false) === 900, 'V0.7 敌方高出 10 级以上按高 10 级算');
-  const h = { lv: 1, exp: 0 }; const u1 = SG.expAdd(h, 20 + 80 + 5, 100);
-  ok(u1 === 2 && h.lv === 3 && h.exp === 5, '升级要 20×等级²，连升、余数保留');
+  const h = { lv: 1, exp: 0 }; const u1 = SG.expAdd(h, 10 + 40 + 5, 100);
+  ok(u1 === 2 && h.lv === 3 && h.exp === 5, '升级要 10×等级²（50 级内），连升、余数保留');
   const h2 = { lv: 49, exp: 0 }; SG.expAdd(h2, 1e6, 50); ok(h2.lv === 50 && h2.exp === 0, 'V0.7 满级不再长，多的不留');
   const g = SG.Game.fresh(21);
   for (const x of ['关羽', '张飞', '赵云']) { g.addHero(x); Object.assign(g.hero(x), { lv: 5, hp: 5000 }); }

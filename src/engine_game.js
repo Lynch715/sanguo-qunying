@@ -26,11 +26,11 @@ SG.MOBS = MOBS; SG.MOBG = MOBG; SG.MOB_FAC = MOB_FAC; SG.MOB_FILE = MOB_FILE;
 const CFG = {
   gold_clear: lv => 200 + 40 * lv,
   gold_replay: lv => 40 + 10 * lv,
-  train_cost: lv => 300 + 2 * lv * lv,   // 2026-10-04：全模式 100 级；闯关练级提高金币成本
+  train_cost: lv => Math.round((200 + lv * lv) * (lv > 50 ? lv / 50 : 1)),   // V0.9：50 级以内 200+等级²；50 级以上乘 等级/50，100 级时和 V0.8 持平
   train_cost_conquest: lv => 40 + 10 * lv + Math.ceil(lv * lv / 4),   // 霸业金币较少，独立成本曲线亦提高
   // V0.7 战斗经验：上阵的人拿；赢了 10×敌方等级×敌方人数，输了三分之一，阵亡减半，复刷减半，比敌方高 5 级以上只拿两成；升一级要 20×等级²
   exp_win: (lv, n) => 10 * lv * n, exp_lose: 1 / 3, exp_dead: .5, exp_replay: .5, exp_over: 5, exp_over_k: .2, exp_under: 10,
-  exp_need: lv => 20 * lv * lv,
+  exp_need: lv => Math.round(10 * lv * lv * (lv > 50 ? lv / 50 : 1)),   // V0.9：50 级以内 10×等级²；50 级以上乘 等级/50
   draw: 300, draw10: 2700,
   pool: { '校': .40, '骁': .30, '名': .20, '虎': .08, '无双': .02 },
   frag_per_dup: 3,
@@ -47,9 +47,9 @@ const CFG = {
   gold2_clear: { '章末': 1, '隐藏': 3, '支线': 1 },
   gold2_draw: 2,
   start_gold: 1000,
-  foe_mul: (ch, typ) => (1.0 + 0.01 * (ch - 1)) * (CFG.type_mul[typ] || 1),
+  foe_mul: (ch, typ) => (1.0 + 0.01 * (ch - 1)) * typeMul(ch, typ),
   // 10-02 加难：章末属性 ×1.10 → ×1.20；隐藏 ×1.10 → ×1.25、一律 5 星、敌方等级不低于麾下最高等级 + 3（封顶 70）
-  type_mul: { '章末': 1.20, '隐藏': 1.25 }, boss_lv_plus: 0, hidden_over: 3, hidden_cap: 70, hidden_star: 5,
+  type_mul: { '章末': 1.15, '隐藏': 1.15 }, boss_early: 1.10, boss_early_ch: 5, boss_lv_plus: 0, hidden_plus: 5, hidden_star: 5,   // V0.9：前五章章末 ×1.10；隐藏 ×1.15，敌方等级 = 本关 +5，不再跟我方涨
   drop_tier: ch => Math.min(4, ch <= 25 ? Math.floor((ch - 1) / 5) : 4),
   replay_drop: .20, boss_excl: .03, hidden_excl: .10, side_excl: .03,
   tx_reroll: 10,
@@ -57,6 +57,8 @@ const CFG = {
   gold_hero: { '袁术': .10, '糜竺': .15, '刘巴': .20, '吕范': .10, '毛玠': .08, '杨松': .06, '黄皓': .08 },   // V0.6：技能文案里写的「上阵的仗赢了金币 +x%」，原来没生效   // V0.6 专属出处关：复刷 3%，不掉给信物，20 枚换一件
 };
 SG.CFG = CFG;
+function typeMul(ch, typ) { return typ === '章末' && ch <= CFG.boss_early_ch ? CFG.boss_early : (CFG.type_mul[typ] || 1); }
+SG.typeMul = typeMul;
 
 // ---------------- 初始化数据 ----------------
 function init(DATA) {
@@ -168,12 +170,16 @@ function limitParts(stage) {
 }
 SG.stageLimit = stageLimit; SG.limitParts = limitParts;
 
-// 后续周目共用难度与经济配置；四周目起沿用三周目强度。
-function cycleRules(cycle = 1) {
-  return cycle >= 3 ? { stats: 2, hp: 2.2, gold: .5, gold2: .5 }
-    : cycle === 2 ? { stats: 1.5, hp: 1.6, gold: .7, gold2: 1 }
-    : { stats: 1, hp: 1, gold: 1, gold2: 1 };
-}
+// V0.9：每个周目单独一档。stats/hp 敌方四维、兵力乘数；lv 等级在二周目平移基础上再加；star 星级加；gold 金币乘数。五周目以后同五周目。
+const CYCLES = {
+  1: { stats: 1, hp: 1, lv: 0, star: 0, gold: 1, gold2: 1 },
+  2: { stats: 1.15, hp: 1.15, lv: 0, star: 2, gold: 1, gold2: 1 },
+  3: { stats: 1.15, hp: 1.15, lv: 10, star: 3, gold: 1, gold2: .5 },
+  4: { stats: 1.15, hp: 1.15, lv: 15, star: 3, gold: 1, gold2: .5 },
+  5: { stats: 1.2, hp: 1.2, lv: 22, star: 3, gold: 1, gold2: .5 },
+};
+function cycleRules(cycle = 1) { return CYCLES[Math.max(1, Math.min(5, cycle))]; }
+SG.CYCLES = CYCLES;
 function cycleEnemy(name, lv, star, ease, cycle) {
   const rules = cycleRules(cycle), u = mkEnemy(name, lv, star, ease * rules.stats);
   u.maxhp *= rules.hp; u.hp *= rules.hp;
@@ -187,8 +193,9 @@ function stageFoes(stage, cycle = 1, tx = null, myLv = 0) {
   let lv = +stage['等级'], star = +stage['星级'];
   if (stage['类型'] === '章末') lv += CFG.boss_lv_plus;
   if (cycle >= 2) {
-    lv = Math.min(70, Math.round(45 + (lv - 1) * 20 / 52) + (cycle >= 3 ? 10 : 0));
-    star = Math.min(5, star + (cycle >= 3 ? 3 : 2));
+    const R = cycleRules(cycle);
+    lv = Math.min(100, Math.round(45 + (lv - 1) * 20 / 52) + R.lv);
+    star = Math.min(5, star + R.star);
     if (stage['类型'] !== '隐藏') {
       const used = new Set(names);
       names = names.map((n, i) => {
@@ -200,13 +207,13 @@ function stageFoes(stage, cycle = 1, tx = null, myLv = 0) {
       });
     }
   }
-  if (stage['类型'] === '隐藏') { if (CFG.hidden_star) star = CFG.hidden_star; if (myLv) lv = Math.min(CFG.hidden_cap, Math.max(lv, myLv + CFG.hidden_over)); }
+  if (stage['类型'] === '隐藏') { if (CFG.hidden_star) star = CFG.hidden_star; lv = Math.min(100, lv + CFG.hidden_plus); }
   if (tx && tx.includes('天狼')) names = txMob(stage, names);
   return { names, lv, star };
 }
 SG.stageFoes = stageFoes;
 // 敌方属性系数：表里的「系数」已含章末 ×1.10，这里换成 type_mul
-function stageEase(st) { const e = parseFloat(st['系数']) || 1, t = st['类型']; return t === '章末' || t === '隐藏' ? e / 1.10 * (CFG.type_mul[t] || 1) : e; }
+function stageEase(st) { const e = parseFloat(st['系数']) || 1, t = st['类型']; return t === '章末' || t === '隐藏' ? e / 1.10 * typeMul(+st['章'], t) : e; }
 SG.stageEase = stageEase;
 
 function apply_limit(stage, A, B) {

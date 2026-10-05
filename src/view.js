@@ -268,9 +268,20 @@ function chapCard(c) {
   const sc = ((D0.scenes || {}).ch || {})[c];
   openModal(`<div class="chapcard" data-a="close">${sc ? `<div class="cc-scene" style="background-image:url('${sc}')"></div>` : ''}<div class="cc-ch">第 ${c} 章</div><div class="cc-t">${esc(C.name)}</div>${info.year ? `<div class="cc-y">${esc(info.year)}</div>` : ''}<div class="cc-rule"></div><div class="cc-l">${esc(info.intro || '')}</div><div class="cc-go">轻触继续</div></div>`);
 }
+// V0.9：新周目说明按 SG.CYCLES 现算
+function cycleNote(n) {
+  const R = SG.cycleRules(n), P = SG.cycleRules(n - 1), x = v => (Math.round(v * 100) / 100) + '';
+  const parts = [];
+  if (n === 2) parts.push('敌方等级、星级整体上调，杂兵换成名将');
+  else if (R.lv > P.lv) parts.push(`敌方等级比二周目高 ${R.lv} 级`);
+  if (R.stats > 1) parts.push(`敌方四维、兵力 ×${x(R.stats)}`);
+  if (R.gold2 < 1) parts.push('首通黄金减半');
+  if (n > 5) parts.push('难度与五周目相同');
+  return parts.join('，') + '。';
+}
 VIEWS.stages = () => {
   let h = '';
-  if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：敌方等级、星级整体上调，杂兵换成名将。将领等级上限 100，一周目最高 5 星，二周目起最高 7 星。二周目四维 ×1.5、兵力 ×1.6、金币 ×0.7；三周目起四维 ×2、兵力 ×2.2、金币 ×0.5，首通黄金减少。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
+  if (G.allCleared()) h += `<div class="card small">终章打完了。可以开第 ${G.s.cycle + 1} 周目：${cycleNote(G.s.cycle + 1)}将领等级上限 100，二周目起最高 7 星。<div class="btns"><div class="btn main" data-a="new-cycle">开第 ${G.s.cycle + 1} 周目</div></div></div>`;
   const cur = G.curChapter();
   for (let c = D.CHAPTERS.length - 1; c >= 1; c--) {
     const C = D.CHAPTERS[c]; if (!C) continue;
@@ -1135,7 +1146,7 @@ const ACT = {
     const L = G.s.bag.filter(it => { const r = D.EQID[it.id]; return !r['归属'] && !G.equippedBy(it.uid) && (r['档'] === '凡品' || r['档'] === '良品'); });
     let v = 0; L.forEach(it => v += G.sell(it.uid)); toast(`卖了 ${L.length} 件，得 ${v} 金`); save(); render();
   },
-  'new-cycle': () => ask('开新周目', '闯过的关卡清零重打，将领、装备、金币都带着。将领等级上限 100，二周目起可升至 7 星。二周目敌方四维 ×1.5、兵力 ×1.6、金币 ×0.7；三周目起四维 ×2、兵力 ×2.2、金币 ×0.5，首通黄金减少。另抽三颗天象，一好一坏，管这一周目。', '开', () => { G.newCycle(); glog(`第 ${G.s.cycle} 周目，天象：${G.txList().join('、')}`); save(); go('main'); }),
+  'new-cycle': () => ask('开新周目', `闯过的关卡清零重打，将领、装备、金币都带着。第 ${G.s.cycle + 1} 周目${cycleNote(G.s.cycle + 1)}另抽三颗天象，一好一坏，管这一周目。`, '开', () => { G.newCycle(); glog(`第 ${G.s.cycle} 周目，天象：${G.txList().join('、')}`); save(); go('main'); }),
 };
 SG.ACT = ACT;
 document.addEventListener('change', e => {

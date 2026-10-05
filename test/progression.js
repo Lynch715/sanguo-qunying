@@ -29,9 +29,10 @@ require('../src/pvp_catalog'); require('../src/engine_pvp'); require('../src/sav
     assert.equal(loaded.hero(n).lv,100); assert.equal(loaded.hero(n).star,7);
   }
   for(let lv=2;lv<=100;lv++) {
-    assert(SG.CFG.train_cost(lv)>200+lv*lv);
+    const k=lv>50?lv/50:1;
+    assert.equal(SG.CFG.train_cost(lv),Math.round((200+lv*lv)*k));
     assert(SG.CFG.train_cost_conquest(lv)>20+5*lv);
-    assert.equal(SG.CFG.exp_need(lv),20*lv*lv);
+    assert.equal(SG.CFG.exp_need(lv),Math.round(10*lv*lv*k));
   }
   const row=SG.D.H['关羽']; const u5=new SG.Unit(row,100,5),u7=new SG.Unit(row,100,7);
   for(const k of ['atk','def','int','agi']) assert(Math.abs(u7.base[k]/u5.base[k]-1.32/1.2)<1e-9);
@@ -42,5 +43,6 @@ require('../src/pvp_catalog'); require('../src/engine_pvp'); require('../src/sav
   for(const [k,v] of [['lv',101],['star',8]]) {const bad=structuredClone(snap);bad.team[0][k]=v;assert.throws(()=>SG.PVP.validate(bad));}
   const opponent=structuredClone(snap);opponent.owner=crypto.randomUUID();
   const result=await SG.PVP.fight(g,opponent);assert(Number.isFinite(result.res.rounds));
+  assert.equal(SG.CFG.train_cost(100),20400); assert.equal(SG.CFG.exp_need(99),Math.round(10*99*99*99/50));
   console.log('100级/7星边界、跨模式、成本、属性、存档与PVP编码通过');
 })().catch(e=>{console.error(e);process.exit(1);});
