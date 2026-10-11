@@ -15,12 +15,17 @@ const FDESC = {
 };
 // 城的位置（示意，不按比例）：x 西→东，y 北→南，0–100
 const POS = {
-  '武威': [8, 22], '陇西': [15, 34], '天水': [24, 38], '长安': [37, 39], '弘农': [45, 41], '洛阳': [52, 38], '上党': [54, 28], '晋阳': [50, 18], '蓟': [70, 8],
+  '武威': [14, 16], '陇西': [23, 25], '天水': [31, 32], '长安': [37, 39], '弘农': [45, 41], '洛阳': [52, 38], '上党': [54, 28], '晋阳': [50, 18], '蓟': [70, 8],
   '邺': [61, 28], '南皮': [69, 19], '平原': [73, 26], '濮阳': [66, 34], '北海': [80, 29], '陈留': [63, 41], '许昌': [58, 46], '谯': [68, 47], '彭城': [74, 40], '下邳': [80, 44],
-  '汝南': [63, 53], '寿春': [71, 53], '广陵': [83, 51], '合肥': [76, 57], '庐江': [72, 62], '建业': [83, 59], '吴郡': [89, 66], '会稽': [89, 76],
-  '汉中': [32, 46], '上庸': [43, 50], '襄阳': [51, 55], '新野': [56, 50], '梓潼': [27, 54], '成都': [20, 63], '江州': [31, 69], '永安': [40, 62], '建宁': [25, 81],
-  '江陵': [49, 63], '江夏': [60, 61], '柴桑': [67, 67], '长沙': [56, 72], '武陵': [45, 72], '零陵': [49, 82], '桂阳': [60, 84], '交趾': [36, 94],
+  '汝南': [63, 53], '寿春': [71, 53], '广陵': [83, 51], '合肥': [76, 57], '庐江': [72, 62], '建业': [83, 59], '吴郡': [86, 65], '会稽': [73, 75],
+  '汉中': [32, 46], '上庸': [43, 50], '襄阳': [51, 55], '新野': [56, 50], '梓潼': [28, 40], '成都': [32, 54], '江州': [39, 63], '永安': [42, 58], '建宁': [32, 78],
+  '江陵': [49, 63], '江夏': [60, 61], '柴桑': [67, 67], '长沙': [56, 72], '武陵': [45, 72], '零陵': [49, 77], '桂阳': [61, 77], '交趾': [36, 94],
 };
+// 城池建筑由页面绘制，旗色和都城状态随存档实时变化。
+function cityIcon(tier, cap, owner) {
+  const roofs = tier === '都' ? '<path d="M9 17L20 10L31 17Z"/><path d="M14 10L20 6L26 10Z"/>' : '<path d="M10 18L20 12L30 18Z"/>';
+  return `<svg class="city-art" viewBox="0 0 40 38" aria-hidden="true"><ellipse cx="20" cy="33" rx="18" ry="4" fill="#443a2a" opacity=".17"/><g stroke="#655440" stroke-width="1.1" stroke-linejoin="round"><path d="M5 24H35V32H5Z" fill="#d7c29d"/><path d="M4 21H10V25H4ZM30 21H36V25H30Z" fill="#e6d5ae"/><path d="M12 17H28V25H12Z" fill="#eddbb1"/><g fill="#75644d">${roofs}</g><path d="M17 32V27Q20 23 23 27V32" fill="#685740"/><path d="M29 6V21"/><path d="M29 6H38L35 10H29Z" fill="var(--owner)"/></g>${cap ? '<path d="M17 3L20 0L23 3L20 6Z" fill="#c19b45" stroke="#6f5124"/>' : ''}</svg>`;
+}
 const Conq = SG.Conq = {};
 // ---------------- 地图缩放、拖动 ----------------
 // 状态存在 V.mz，重画时照旧；城点和城名反向缩放，放大后只是摊开，字不跟着变大。
@@ -127,21 +132,23 @@ VIEWS.map = () => {
   for (const a in w.ADJ) for (const b of w.ADJ[a]) {
     const k = a < b ? a + b : b + a; if (seen.has(k)) continue; seen.add(k);
     const [x1, y1] = POS[a], [x2, y2] = POS[b];
-    lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#b9ae9b" stroke-width="1.4" vector-effect="non-scaling-stroke" />`;
+    const active = V.cqSel === a || V.cqSel === b;
+    lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="route${active ? ' active' : ''}" stroke-width="${active ? 2 : 1}" vector-effect="non-scaling-stroke" />`;
   }
   const cities = Object.keys(st.city).map(n => {
-    const c = st.city[n], [x, y] = POS[n], sz = c.tier === '都' ? 15 : c.tier === '大' ? 11 : 8;
+    const c = st.city[n], [x, y] = POS[n];
     const cap = Object.values(st.capital).includes(n) && c.owner !== '无' && st.capital[c.owner] === n;
-    return `<div class="city${V.cqSel === n ? ' sel' : ''}${tg.has(n) && !g.s.acted ? ' can' : ''}" style="left:${x}%;top:${y}%" data-a="cq-city" data-c="${n}">
-      <div class="dot" style="width:${sz}px;height:${sz}px;background:${FCOL[c.owner]}${cap ? ';border-color:#2b2520' : ''}"></div><div class="cn">${n}</div></div>`;
+    return `<button type="button" class="city tier-${c.tier}${cap ? ' capital' : ''}${V.cqSel === n ? ' sel' : ''}${tg.has(n) && !g.s.acted ? ' can' : ''}" style="left:${x}%;top:${y}%;--owner:${FCOL[c.owner]}" data-a="cq-city" data-c="${n}" aria-label="${n}，${c.owner === '无' ? '无主' : c.owner}，${cap ? '都城' : c.tier === '大' ? '大城' : c.tier === '都' ? '重镇' : '郡城'}${tg.has(n) && !g.s.acted ? '，可出征' : ''}" title="${n} · ${c.owner === '无' ? '无主' : c.owner}">
+      ${cityIcon(c.tier, cap, c.owner)}<span class="cn">${n}</span></button>`;
   }).join('');
   const cnt = {}; for (const n in st.city) cnt[st.city[n].owner] = (cnt[st.city[n].owner] || 0) + 1;
   const legend = ['魏', '蜀', '吴', '汉', '无'].map(f => `<span><i style="background:${FCOL[f]}"></i>${f === '无' ? '无主' : f}${f === me ? '（你）' : ''} ${cnt[f] || 0}${f !== '无' && !st.alive[f] ? '·灭' : ''}</span>`).join('');
+  const mapArt = (window.SGDATA || {}).conquestMap;
   const news = (g.s.news || []).slice(-6).map(esc).join('<br>');
   return `<div class="row" style="margin-bottom:6px"><b class="kai" style="font-size:1.1em;color:${FCOL[me]}">${me}</b><span class="small muted">都城 ${st.capital[me]}　第 ${st.turn} 回合${st.turn <= SG.CQ.truce ? `（休战到第 ${SG.CQ.truce} 回合）` : ''}</span><span class="grow"></span>
       <span class="btn sm main" data-a="cq-end">${g.s.acted ? '结束回合' : '过回合'}</span></div>
-    <div class="map" id="cqmap"><div class="mapin" style="${mzStyle()}"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${lines}</svg>${cities}</div><div class="mapctl"><span data-a="cq-zoom" data-v="in">＋</span><span data-a="cq-zoom" data-v="out">－</span><span class="rs" data-a="cq-zoom" data-v="0">复位</span></div></div>
-    <div class="legend">${legend}</div>
+    <div class="map${V.cqRoutes ? ' routes-on' : ''}" id="cqmap" aria-label="霸业山河地图"><div class="mapin" style="${mzStyle()}">${mapArt ? `<img class="map-art" src="${mapArt}" alt="三国山河地形图" draggable="false">` : ''}<svg class="map-routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines}</svg>${cities}</div><div class="mapctl"><span data-a="cq-zoom" data-v="in">＋</span><span data-a="cq-zoom" data-v="out">－</span><span class="rs" data-a="cq-zoom" data-v="0">复位</span></div></div>
+    <div class="map-tools"><span class="small muted">山河舆图 · 四十四城</span><button type="button" class="btn sm" data-a="cq-routes" aria-pressed="${!!V.cqRoutes}">${V.cqRoutes ? '隐藏路线' : '显示路线'}</button></div><div class="legend">${legend}</div>
     <div class="small muted">${g.s.acted ? '这回合已出过兵。' : '红字的城可以打，点城看守军。'}练级、升星、招降、招贤不占回合。</div>
     ${news ? `<div class="card cq-log" style="margin-top:8px">${news}</div>` : ''}
     <div class="btns"><div class="btn sm" data-a="cq-reguard">重排守将（最弱的守城）</div></div>`;
@@ -170,7 +177,8 @@ function citySheet(n) {
   }
   openModal(`<div class="shead">${n}<span class="x" data-a="close">关闭</span></div>${body}`);
 }
-ACT['cq-city'] = el => { V.cqSel = el.dataset.c; citySheet(el.dataset.c); };
+ACT['cq-routes'] = () => { V.cqRoutes = !V.cqRoutes; SG.render(); };
+ACT['cq-city'] = el => { V.cqSel = el.dataset.c; SG.render(); citySheet(el.dataset.c); };
 ACT['cq-guard'] = el => {
   const w = W(), c = w.st.city[el.dataset.c], n = el.dataset.n || null;
   if (n) for (const x of w.cities(w.st.me)) if (w.st.city[x].guard === n) w.st.city[x].guard = null;

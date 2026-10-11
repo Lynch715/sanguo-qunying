@@ -3,9 +3,9 @@
    图片缓存优先：地址都带 ?v=内容哈希，换了图地址就变，缓存里有就一定是对的。
    VER 由 build.py 按版本号和页面哈希写入，改版旧缓存自动清掉。
    V0.7：图片单独放一个不随版本清的缓存（IMG），改版不用重下全部立绘；地址带哈希，换了图自然是新地址。 */
-const VER = 'sgqyl-0.9-fec3001f';
+const VER = 'sgqyl-0.9-d2324430';
 const IMG = 'sgqyl-img';
-const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/items/pvp_ear.png?v=b3bfa096'];
+const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/items/pvp_ear.png?v=b3bfa096', "./assets/maps/conquest-terrain-v1.webp?v=b242ce68"];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VER).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -23,7 +23,7 @@ self.addEventListener('fetch', e => {
   if (u.origin !== location.origin) return;
   if (isImg(u)) {
     e.respondWith(caches.open(IMG).then(async c => {
-      const hit = await c.match(req);
+      const hit = (await c.match(req)) || (await caches.match(req));
       if (hit) return hit;
       return fetch(req).then(r => { if (r.ok) c.put(req, r.clone()); return r; });
     }));

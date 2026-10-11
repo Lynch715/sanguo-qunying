@@ -1,0 +1,28 @@
+// 地图显示契约：44 城点击、归属更新、可攻状态与路线不改变引擎事实。
+const assert = require('assert');
+const fs = require('fs'), vm = require('vm');
+const {SG, DATA} = require('./load_node');
+SG.init(DATA);
+const game = SG.ConquestGame.fresh('蜀');
+SG.getGame = () => game;
+SG.V = {}; SG.VIEWS = {}; SG.ACT = {};
+SG.ui = {esc: x => String(x), num: String};
+const ctx = {window: {SG, SGDATA: {conquestMap:'assets/maps/test.webp'}}, document: {addEventListener() {}}, Map, Set};
+vm.runInNewContext(fs.readFileSync('src/view_conquest.js','utf8'),ctx);
+let html = SG.VIEWS.map();
+assert.equal((html.match(/data-a="cq-city"/g)||[]).length,44);
+for(const city of DATA.cities) assert(html.includes(`data-c="${city['名']}"`));
+assert(html.includes('assets/maps/test.webp'));
+assert(html.includes('aria-pressed="false"'));
+SG.V.cqSel = '成都'; SG.V.cqRoutes = true;
+html=SG.VIEWS.map();
+assert(html.includes('route active')); assert(html.includes('routes-on'));
+const owned=game.world.st.city['成都'];
+owned.owner='魏';
+html=SG.VIEWS.map();
+assert(html.includes('aria-label="成都，魏'));
+game.s.acted=true;
+html=SG.VIEWS.map();
+assert(!html.includes('，可出征'));
+assert(!html.includes('undefined')); assert(!html.includes('NaN'));
+console.log('44 城点击契约、归属更新、选中路线、行动状态检查通过');

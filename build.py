@@ -173,6 +173,7 @@ def scenes():
 def main():
     data = {
         'version': VERSION,
+        'conquestMap': ('assets/maps/conquest-terrain-v1.webp?v=' + fhash(os.path.join(ROOT, 'assets/maps/conquest-terrain-v1.webp'))) if not NOASSETS and os.path.exists(os.path.join(ROOT, 'assets/maps/conquest-terrain-v1.webp')) else '',
         'heroes': heroes(), 'skills': tsv('skills_dsl.tsv'), 'equip': tsv('equip.tsv'),
         'set4': tsv('set4.tsv'), 'stages': tsv('stages.tsv'), 'cities': tsv('cities.tsv'), 'bonds': bonds(), 'exsrc': exsrc(), 'skpow': tsv('skill_power.tsv') if os.path.exists(os.path.join(ROOT, 'data', 'skill_power.tsv')) else [],
         'story': story(), 'crawl': crawl(), 'sets': set_text(), 'portraits': portraits(), 'scenes': scenes(),
@@ -221,7 +222,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {{
     for fn in (name, 'index.html'):
         with open(os.path.join(ROOT, fn), 'w', encoding='utf-8') as f:
             f.write(html)
-    sw = open(os.path.join(ROOT, 'src', 'sw_template.js'), encoding='utf-8').read().replace('__VERSION__', VERSION + '-' + hashlib.md5(html.encode()).hexdigest()[:8])
+    sw = open(os.path.join(ROOT, 'src', 'sw_template.js'), encoding='utf-8').read().replace('__VERSION__', VERSION + '-' + hashlib.md5(html.encode()).hexdigest()[:8]).replace('__MAP_SHELL__', ', ' + json.dumps('./' + data['conquestMap']) if data['conquestMap'] else '')
     with open(os.path.join(ROOT, 'sw.js'), 'w', encoding='utf-8') as f:
         f.write(sw)
     manifest = {

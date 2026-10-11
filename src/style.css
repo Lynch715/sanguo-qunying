@@ -218,12 +218,22 @@ h1,h2,h3,.kai{font-family:var(--f-title);font-weight:400}
 
 /* 霸业地图 */
 .map{position:relative;width:100%;aspect-ratio:1/1.02;background:#f1ead9;border:1px solid var(--paper-3);border-radius:8px;overflow:hidden}
-.map svg{position:absolute;inset:0;width:100%;height:100%}
-.city{position:absolute;transform:scale(calc(1 / var(--s,1))) translate(-50%,-50%);transform-origin:0 0;text-align:center;cursor:pointer;z-index:2}
-.city .dot{margin:0 auto;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
-.city .cn{font-family:var(--f-title);font-size:.7em;white-space:nowrap;text-shadow:0 0 2px #f6f1e6,0 0 2px #f6f1e6;line-height:1.1;margin-top:1px}
-.city.sel .dot{box-shadow:0 0 0 3px var(--jin)}
-.city.can .cn{color:var(--zhu);font-weight:bold}
+.map .map-art{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
+.map .map-routes{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.route{stroke:#776248;opacity:0;transition:opacity .18s}
+.routes-on .route{opacity:.35}
+.route.active{stroke:#a63c28;opacity:.8}
+.city{position:absolute;transform:scale(calc(1 / var(--s,1))) translate(-50%,-50%);transform-origin:0 0;width:38px;height:43px;padding:0;border:0;background:none;color:var(--ink);font:inherit;text-align:center;cursor:pointer;z-index:2;touch-action:none}
+.city .city-art{display:block;width:32px;height:30px;margin:auto;filter:drop-shadow(0 1px 1px #fffa)}
+.city.tier-都 .city-art{width:38px;height:34px}
+.city.tier-郡 .city-art{width:27px;height:26px}
+.city .cn{display:block;width:max-content;max-width:70px;margin:-1px auto 0;padding:1px 4px;border-radius:3px;font-family:var(--f-title);font-size:11px;white-space:nowrap;background:rgba(250,243,224,.88);box-shadow:0 1px 2px #66543b40;line-height:1.15;border-bottom:2px solid var(--owner)}
+.city.sel{z-index:4}
+.city.sel .cn{background:#fff0ba;outline:2px solid #b18a32}
+.city.can .cn{color:#a72c22;font-weight:bold;border:1px solid #b4503a;border-bottom:2px solid var(--owner)}
+.city:hover .cn,.city:focus-visible .cn{background:#fff7d9;outline:2px solid #947239}
+.city:focus-visible{outline:none;z-index:4}
+.map-tools{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:7px}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:.78em;margin:6px 0}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:3px;vertical-align:-1px}
 .cq-log{font-size:.8em;color:var(--ink-2);max-height:150px;overflow:auto}
@@ -452,3 +462,16 @@ details.bio{padding:0;border:1px solid var(--ink-4);border-radius:6px;margin:12p
 @media(min-width:800px){.god-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
 .god-card-status{min-height:3.2em;line-height:1.6}.god-panel .btns{flex-wrap:wrap}
+/* 小屏总览压低建筑高度，放大后仍保持城名尺寸，控制器避开东南城池。 */
+#cqmap .mapctl{right:auto;left:6px;bottom:6px}
+@media(max-width:480px){
+ .city{width:30px;height:32px}
+ .city .city-art{width:23px;height:21px}
+ .city.tier-都 .city-art{width:27px;height:24px}
+ .city.tier-郡 .city-art{width:19px;height:18px}
+ .city .cn{font-size:10px;padding:1px 2px}
+}
+/* 建筑中心作为点击锚点；城名不扩张相邻城的命中区域。 */
+#cqmap .city{width:28px;height:28px}
+#cqmap .city .city-art{position:absolute;left:50%;bottom:3px;transform:translateX(-50%);pointer-events:none}
+#cqmap .city .cn{position:absolute;left:50%;top:24px;transform:translateX(-50%);margin:0;pointer-events:none}
