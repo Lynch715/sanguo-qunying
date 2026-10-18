@@ -128,6 +128,9 @@ SG.render = render;
 function go(v) { V.view = v; V.sel = null; if (v !== 'hero') V.heroFrom = null; render(); window.scrollTo(0, 0); }
 
 // ---------------- 标题 ----------------
+function creatorFooter() {
+  return `<div class="creator-footer"><div>制作人：大老师　微信：lynchrrr</div><div>发现更多游戏，请在小红书、闲鱼搜索原创作者“模拟游戏大全”。</div></div>`;
+}
 function titleHtml() {
   const has = !!store.get(SG.SAVE_KEY), hasC = !!store.get('sgqyl_conquest_v1');
   return `<div class="title-page">
@@ -141,7 +144,8 @@ function titleHtml() {
     <div class="btn" data-a="conq-new">霸业　新开</div>
     <div class="imp" data-a="import">已有存档？导入</div>
     <div class="ver">V${VERSION}</div>
-    <div class="copy" data-a="about">© 2026 Lynch　保留所有权利，未经许可不得改编或二次创作<br>微信 lynchrrr　·　关于与许可</div>
+    <div class="copy" data-a="about">© 2026 Lynch　保留所有权利，未经许可不得改编或二次创作<br>关于与许可</div>
+    ${creatorFooter()}
   </div>`;
 }
 
@@ -925,7 +929,8 @@ function menuSheet() {
     <div class="btns"><div class="btn" data-a="to-title">回标题</div><div class="btn" data-a="wipe">删档重开</div></div>
     ${SG.pwa && SG.pwa.can() ? '<div class="btns"><div class="btn qing" data-a="pwa-install">装到桌面</div></div>' : ''}
     <div class="btns"><div class="btn" data-a="about">关于与许可</div></div>
-    <div class="tiny muted" style="margin-top:10px">V${VERSION}　© 2026 Lynch　微信 lynchrrr</div>`);
+    <div class="tiny muted" style="margin-top:10px">V${VERSION}　© 2026 Lynch</div>
+    ${creatorFooter()}`);
 }
 
 // ---------------- 动作 ----------------

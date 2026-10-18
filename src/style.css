@@ -209,6 +209,7 @@ h1,h2,h3,.kai{font-family:var(--f-title);font-weight:400}
 .title-page .seal-big{width:64px;height:64px;background:var(--zhu);color:#fff;font-family:var(--f-title);font-size:2.1em;display:flex;align-items:center;justify-content:center;border-radius:6px;margin-bottom:6px}
 .title-page .btn{width:220px}
 .title-page .ver{font-size:.75em;color:var(--ink-4);margin-top:16px}
+.creator-footer{max-width:100%;margin-top:10px;font-size:12px;line-height:1.8;color:var(--ink-3);text-align:center;overflow-wrap:anywhere}
 
 /* 招贤结果 */
 .pulls{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
